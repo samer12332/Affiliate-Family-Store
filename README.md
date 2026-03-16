@@ -1,35 +1,61 @@
-# v0-ecommerce-marketplace-app
+# Family Store Ecommerce
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+Family Store Ecommerce is a Next.js storefront project with public shopping pages, checkout flows, admin pages, and supporting API routes for products, categories, orders, messages, and admin users.
 
-## Built with v0
+## Tech Stack
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
-
-[Continue working on v0 →](https://v0.app/chat/projects/prj_2Eouh5fSk2b20uHoNbXvXjQPgF7i)
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Express
+- MongoDB with Mongoose
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-## Learn More
+Create a local environment file and add the values your setup needs:
 
-To learn more, take a look at the following resources:
+```env
+MONGODB_URI=mongodb://localhost:27017/familystore
+PORT=5000
+JWT_SECRET=your-secret-key-change-in-production
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+## Available Scripts
 
-<a href="https://v0.app/chat/api/kiro/clone/samer12332/v0-ecommerce-marketplace-app" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+- `npm run dev` starts the Next.js development server
+- `npm run build` creates a production build
+- `npm run start` starts the production server
+- `npm run lint` runs linting
+
+## Project Structure
+
+- `app/` Next.js app router pages and API routes
+- `components/` shared UI and feature components
+- `hooks/` client-side hooks
+- `lib/` shared utilities, constants, and data helpers
+- `server/` backend models, routes, middleware, and scripts
+- `public/` static assets
+
+## Notes
+
+- The frontend runs on `http://localhost:3000`
+- Some API features expect MongoDB and backend environment variables to be configured
+- Seed and backend-related implementation details are documented in `IMPLEMENTATION_GUIDE.md`
