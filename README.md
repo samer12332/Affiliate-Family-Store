@@ -27,6 +27,25 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Entry Routes
+
+### User Routes
+
+- `/` main storefront homepage
+- `/shop` product listing page
+- `/cart` cart page
+- `/checkout` checkout page
+
+### Admin Routes
+
+- `/admin/login` admin sign-in page
+- `/admin/dashboard` admin dashboard landing page after login
+- `/admin/products` product management
+- `/admin/orders` order management
+- `/admin/categories` category management
+- `/admin/messages` customer messages
+- `/admin/users` admin user management
+
 ## Environment Variables
 
 Create a local environment file and add the values your setup needs:
