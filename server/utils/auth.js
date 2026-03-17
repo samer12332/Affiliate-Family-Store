@@ -4,8 +4,17 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-producti
 const JWT_EXPIRES_IN = "24h";
 
 // Generate JWT token
-const generateToken = (adminUserId) => {
-  return jwt.sign({ id: adminUserId }, JWT_SECRET, {
+const generateToken = (user) => {
+  const payload =
+    typeof user === "string"
+      ? { id: user }
+      : {
+          id: String(user.id || user._id),
+          role: user.role,
+          email: user.email,
+        };
+
+  return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
   });
 };

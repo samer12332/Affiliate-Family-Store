@@ -1,259 +1,163 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { SiteLogo } from '@/components/shared/SiteLogo';
-import { BarChart3, ShoppingCart, Package, MessageSquare, Users, LogOut, Truck } from 'lucide-react';
 
-interface DashboardStats {
+interface DashboardData {
   totalOrders: number;
   totalProducts: number;
-  totalMessages: number;
-  totalUsers: number;
-  recentOrders: any[];
-  topProducts: any[];
+  totalMerchants: number;
+  totalMarketers: number;
+  totalShippingSystems: number;
+  visibleDues?: number;
+  payableToMarketers?: number;
+  ownerCommissionDue?: number;
+  totalCommissions?: number;
+  statusCounts: Record<string, number>;
+  recentOrders: Array<any>;
 }
 
-export default function AdminDashboard() {
+export default function DashboardPage() {
   const router = useRouter();
-  const { token, isLoading, logout } = useAdminAuth();
+  const { admin, token, isLoading, logout } = useAdminAuth();
   const { get } = useApi();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalOrders: 0,
-    totalProducts: 0,
-    totalMessages: 0,
-    totalUsers: 0,
-    recentOrders: [],
-    topProducts: [],
-  });
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
-
     if (!token) {
       router.push('/admin/login');
       return;
     }
 
-    const fetchStats = async () => {
-      try {
-        const dashboardRes = await get('/admin/dashboard');
+    if (admin?.role === 'marketer') {
+      router.push('/merchant-directory');
+      return;
+    }
 
-        setStats({
-          totalOrders: Number(dashboardRes.totalOrders ?? 0),
-          totalProducts: Number(dashboardRes.totalProducts ?? 0),
-          totalMessages: Number(dashboardRes.totalMessages ?? 0),
-          totalUsers: Number(dashboardRes.totalUsers ?? 0),
-          recentOrders: Array.isArray(dashboardRes.recentOrders) ? dashboardRes.recentOrders : [],
-          topProducts: Array.isArray(dashboardRes.topProducts) ? dashboardRes.topProducts : [],
-        });
-      } catch (error) {
-        console.error('[v0] Failed to fetch dashboard stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    get('/admin/dashboard')
+      .then(setData)
+      .catch((error) => console.error('[v0] Failed to load dashboard', error));
+  }, [admin?.role, get, isLoading, router, token]);
 
-    fetchStats();
-  }, [token, isLoading, router, get]);
+  if (isLoading || !token || !admin) return null;
 
-  const handleLogout = () => {
-    logout();
-    router.push('/admin/login');
-  };
+  const nav =
+    admin.role === 'marketer'
+      ? [
+          { href: '/admin/orders', label: 'My orders' },
+          { href: '/merchant-directory', label: 'Merchant pages' },
+        ]
+      : admin.role === 'super_admin'
+        ? [
+            { href: '/admin/users', label: 'Users' },
+            { href: '/admin/orders', label: 'All orders' },
+          ]
+        : [
+            { href: '/admin/products', label: 'Products' },
+            { href: '/admin/orders', label: 'Orders' },
+            { href: '/admin/shipping-systems', label: 'Shipping' },
+            { href: '/admin/users', label: 'Users' },
+          ];
 
-  if (isLoading || !token) {
-    return null;
-  }
+  const cards =
+    admin.role === 'marketer'
+      ? [
+          { label: 'My orders', value: data?.totalOrders ?? 0 },
+          { label: 'Delivered dues', value: `${Number(data?.visibleDues || 0).toFixed(2)} EGP` },
+          { label: 'Delivered', value: data?.statusCounts?.delivered ?? 0 },
+        ]
+      : admin.role === 'merchant'
+        ? [
+            { label: 'Merchant orders', value: data?.totalOrders ?? 0 },
+            { label: 'My products', value: data?.totalProducts ?? 0 },
+            { label: 'Payable to marketers', value: `${Number(data?.payableToMarketers || 0).toFixed(2)} EGP` },
+            { label: 'Owner commission due', value: `${Number(data?.ownerCommissionDue || 0).toFixed(2)} EGP` },
+          ]
+        : [
+            { label: 'Orders', value: data?.totalOrders ?? 0 },
+            { label: 'Products', value: data?.totalProducts ?? 0 },
+            { label: 'Merchants', value: data?.totalMerchants ?? 0 },
+            { label: 'Marketers', value: data?.totalMarketers ?? 0 },
+            ...(admin.role === 'owner'
+              ? [{ label: 'Owner commissions', value: `${Number(data?.totalCommissions || 0).toFixed(2)} EGP` }]
+              : []),
+          ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <SiteLogo href="/admin/dashboard" compact />
-            <div>
-              <h1 className="text-lg font-bold text-foreground">FamilyStore Admin</h1>
-              <p className="text-xs text-muted-foreground">Dashboard</p>
-            </div>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f5ef,#f3efe8_45%,#faf8f4)]">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-stone-200 bg-white/90 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-stone-500">{admin.role.replace('_', ' ')}</p>
+            <h1 className="mt-2 text-3xl font-bold text-stone-900">Welcome, {admin.name}</h1>
+            <p className="mt-1 text-sm text-stone-600">{admin.email}</p>
           </div>
           <Button
             variant="outline"
-            size="sm"
-            onClick={handleLogout}
-            className="gap-2"
+            onClick={() => {
+              logout();
+              router.push('/admin/login');
+            }}
           >
-            <LogOut className="w-4 h-4" />
             Logout
           </Button>
         </div>
 
-        {/* Navigation */}
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mb-8">
-          <Link href="/admin/products">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-            >
-              <Package className="w-4 h-4" />
-              Products
-            </Button>
-          </Link>
-          <Link href="/admin/categories">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-            >
-              <BarChart3 className="w-4 h-4" />
-              Categories
-            </Button>
-          </Link>
-          <Link href="/admin/orders">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              Orders
-            </Button>
-          </Link>
-          <Link href="/admin/messages">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Messages
-            </Button>
-          </Link>
-          <Link href="/admin/users">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-            >
-              <Users className="w-4 h-4" />
-              Users
-            </Button>
-          </Link>
-          <Link href="/admin/shipping-systems">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-            >
-              <Truck className="w-4 h-4" />
-              Shipping
-            </Button>
-          </Link>
+        <div className="mb-8 flex flex-wrap gap-3">
+          {nav.map((item) => (
+            <Link key={item.href} href={item.href}>
+              <Button variant="outline">{item.label}</Button>
+            </Link>
+          ))}
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Orders</p>
-                <p className="text-3xl font-bold text-foreground">{stats.totalOrders}</p>
-              </div>
-              <ShoppingCart className="w-8 h-8 text-primary opacity-50" />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Products</p>
-                <p className="text-3xl font-bold text-foreground">{stats.totalProducts}</p>
-              </div>
-              <Package className="w-8 h-8 text-primary opacity-50" />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Messages</p>
-                <p className="text-3xl font-bold text-foreground">{stats.totalMessages}</p>
-              </div>
-              <MessageSquare className="w-8 h-8 text-primary opacity-50" />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Admin Users</p>
-                <p className="text-3xl font-bold text-foreground">{stats.totalUsers}</p>
-              </div>
-              <Users className="w-8 h-8 text-primary opacity-50" />
-            </div>
-          </Card>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => (
+            <Card key={card.label} className="rounded-3xl border-stone-200 p-6">
+              <p className="text-sm text-stone-500">{card.label}</p>
+              <p className="mt-3 text-3xl font-bold text-stone-900">{card.value}</p>
+            </Card>
+          ))}
         </div>
 
-        {/* Recent Data */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Recent Orders */}
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Recent Orders</h2>
-            {loading ? (
-              <p className="text-muted-foreground">Loading...</p>
-            ) : stats.recentOrders.length > 0 ? (
-              <div className="space-y-3">
-                {stats.recentOrders.map((order) => (
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <Card className="rounded-3xl border-stone-200 p-6">
+            <h2 className="text-lg font-semibold text-stone-900">Status counts</h2>
+            <div className="mt-4 space-y-3">
+              {Object.entries(data?.statusCounts || {}).map(([status, count]) => (
+                <div key={status} className="flex items-center justify-between rounded-2xl bg-stone-50 px-4 py-3">
+                  <span className="capitalize text-stone-700">{status}</span>
+                  <span className="font-semibold text-stone-900">{count}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="rounded-3xl border-stone-200 p-6">
+            <h2 className="text-lg font-semibold text-stone-900">Recent orders</h2>
+            <div className="mt-4 space-y-3">
+              {(data?.recentOrders || []).length === 0 ? (
+                <p className="text-sm text-stone-500">No orders yet.</p>
+              ) : (
+                data?.recentOrders?.map((order) => (
                   <Link key={order._id} href={`/admin/orders/${order._id}`}>
-                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors cursor-pointer">
-                      <div>
-                        <p className="font-medium text-foreground">{order.orderNumber}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {order.customer?.email}
-                        </p>
+                    <div className="rounded-2xl bg-stone-50 px-4 py-3 transition hover:bg-stone-100">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-stone-900">{order.orderNumber}</p>
+                        <p className="capitalize text-stone-600">{order.status}</p>
                       </div>
-                      <span className="text-sm font-semibold text-foreground">
-                        ${Number(order.total ?? 0).toFixed(2)}
-                      </span>
+                      <p className="mt-1 text-sm text-stone-500">{order.customer?.name}</p>
                     </div>
                   </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No orders yet</p>
-            )}
-          </Card>
-
-          {/* Top Products */}
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Top Products</h2>
-            {loading ? (
-              <p className="text-muted-foreground">Loading...</p>
-            ) : stats.topProducts.length > 0 ? (
-              <div className="space-y-3">
-                {stats.topProducts.map((product) => (
-                  <Link key={product._id} href={`/admin/products/${product._id}/edit`}>
-                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors cursor-pointer">
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground line-clamp-1">
-                          {product.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {product.category}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-foreground">
-                        ${product.price}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No products yet</p>
-            )}
+                ))
+              )}
+            </div>
           </Card>
         </div>
       </main>

@@ -1,6 +1,7 @@
+import { canManageMerchantResource, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { ShippingSystem } from '@/lib/models';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
+import { ShippingSystem } from '@/lib/models';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -10,7 +11,6 @@ export async function GET(
   try {
     await connectDB();
     const { id } = await params;
-
     const shippingSystem = await ShippingSystem.findById(id);
     if (!shippingSystem) {
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });
@@ -32,47 +32,53 @@ export async function PUT(
 ) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'merchant']);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
-    const body = await request.json();
-    const { name, governorateFees, refusalPolicy, notes, active } = body;
-
-    if (!name || !Array.isArray(governorateFees) || governorateFees.length === 0 || !refusalPolicy) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    const normalizedFees = governorateFees
-      .map((entry: any) => ({
-        governorate: String(entry.governorate || '').trim(),
-        fee: Number(entry.fee),
-      }))
-      .filter((entry: any) =>
-        EGYPTIAN_GOVERNORATES.includes(entry.governorate) && Number.isFinite(entry.fee) && entry.fee >= 0
-      );
-
-    if (normalizedFees.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one valid governorate fee is required' },
-        { status: 400 }
-      );
-    }
-
-    const shippingSystem = await ShippingSystem.findByIdAndUpdate(
-      id,
-      {
-        name: String(name).trim(),
-        governorateFees: normalizedFees,
-        refusalPolicy,
-        notes: notes || '',
-        active: active !== false,
-      },
-      { new: true }
-    );
-
+    const shippingSystem = await ShippingSystem.findById(id);
     if (!shippingSystem) {
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ shippingSystem });
+    if (!canManageMerchantResource(auth.user, shippingSystem.merchantId.toString())) {
+      return NextResponse.json({ error: 'You cannot edit this shipping system' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const normalizedFees = Array.isArray(body?.governorateFees)
+      ? body.governorateFees
+          .map((entry: any) => ({
+            governorate: String(entry?.governorate || '').trim(),
+            fee: Number(entry?.fee),
+            estimatedDays: Number(entry?.estimatedDays || 0),
+          }))
+          .filter(
+            (entry: any) =>
+              EGYPTIAN_GOVERNORATES.includes(entry.governorate) &&
+              Number.isFinite(entry.fee) &&
+              entry.fee >= 0
+          )
+      : [];
+
+    if (!String(body?.name || '').trim() || normalizedFees.length === 0) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    const updated = await ShippingSystem.findByIdAndUpdate(
+      id,
+      {
+        name: String(body.name).trim(),
+        governorateFees: normalizedFees,
+        notes: String(body?.notes || ''),
+        active: body?.active !== false,
+      },
+      { new: true }
+    );
+
+    return NextResponse.json({ shippingSystem: updated });
   } catch (error: any) {
     console.error('[v0] Shipping system update error:', error);
     return NextResponse.json(
@@ -88,13 +94,22 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
-    const { id } = await params;
+    const auth = await requireRole(request, ['owner', 'merchant']);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const shippingSystem = await ShippingSystem.findByIdAndDelete(id);
+    const { id } = await params;
+    const shippingSystem = await ShippingSystem.findById(id);
     if (!shippingSystem) {
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });
     }
 
+    if (!canManageMerchantResource(auth.user, shippingSystem.merchantId.toString())) {
+      return NextResponse.json({ error: 'You cannot delete this shipping system' }, { status: 403 });
+    }
+
+    await ShippingSystem.findByIdAndDelete(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('[v0] Shipping system delete error:', error);

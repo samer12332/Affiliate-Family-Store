@@ -1,34 +1,27 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useApi } from '@/hooks/useApi';
-import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { AVAILABILITY_STATUS, GENDER_TYPES, PRODUCT_CATEGORIES } from '@/lib/constants';
-
-interface ShippingSystem {
-  _id: string;
-  name: string;
-}
 
 export default function NewProductPage() {
   const router = useRouter();
+  const { admin, token, isLoading } = useAdminAuth();
   const { get, post } = useApi();
-  const { token, isLoading } = useAdminAuth();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [shippingSystems, setShippingSystems] = useState<ShippingSystem[]>([]);
-  const [shippingSystemsLoading, setShippingSystemsLoading] = useState(true);
+  const [shippingSystems, setShippingSystems] = useState<any[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
-    price: '',
+    merchantPrice: '',
+    suggestedCommission: '',
     category: PRODUCT_CATEGORIES[0],
     gender: GENDER_TYPES[0],
     colors: '',
@@ -36,41 +29,26 @@ export default function NewProductPage() {
     shippingSystemId: '',
     availabilityStatus: AVAILABILITY_STATUS[0],
     description: '',
-    featured: false,
-    onSale: false,
   });
 
   useEffect(() => {
-    if (!isLoading && !token) {
+    if (isLoading) return;
+    if (!token) {
       router.push('/admin/login');
+      return;
     }
-  }, [isLoading, token, router]);
 
-  useEffect(() => {
-    if (!token) return;
-
-    const fetchShippingSystems = async () => {
-      try {
-        const data = await get('/shipping-systems');
-        const systems = data.shippingSystems || [];
-        setShippingSystems(systems);
-        if (systems.length > 0) {
-          setFormData((prev) => ({
-            ...prev,
-            shippingSystemId: prev.shippingSystemId || systems[0]._id,
-          }));
+    get('/shipping-systems?limit=100')
+      .then((data) => {
+        setShippingSystems(data.shippingSystems || []);
+        if (data.shippingSystems?.[0]?._id) {
+          setFormData((prev) => ({ ...prev, shippingSystemId: prev.shippingSystemId || data.shippingSystems[0]._id }));
         }
-      } catch (err) {
-        setError('Failed to load shipping systems');
-      } finally {
-        setShippingSystemsLoading(false);
-      }
-    };
+      })
+      .catch((error) => console.error('[v0] Failed to fetch shipping systems', error));
+  }, [get, isLoading, router, token]);
 
-    fetchShippingSystems();
-  }, [token, get]);
-
-  if (isLoading || !token) return null;
+  if (isLoading || !token || !admin) return null;
 
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -80,23 +58,15 @@ export default function NewProductPage() {
       reader.readAsDataURL(file);
     });
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
     const mergedFiles = [...selectedFiles, ...files];
     setSelectedFiles(mergedFiles);
-
-    try {
-      const previews = await Promise.all(mergedFiles.map(fileToDataUrl));
-      setImagePreviews(previews);
-    } catch {
-      setError('Could not read selected images');
-      setImagePreviews([]);
-    }
-
-    // Allow selecting the same file again in a subsequent pick.
-    e.target.value = '';
+    const previews = await Promise.all(mergedFiles.map(fileToDataUrl));
+    setImagePreviews(previews);
+    event.target.value = '';
   };
 
   const removeImage = (indexToRemove: number) => {
@@ -106,297 +76,132 @@ export default function NewProductPage() {
     setImagePreviews(nextPreviews);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-    try {
-      if (!formData.shippingSystemId) {
-        setError('Please select a shipping system');
-        setLoading(false);
-        return;
-      }
+    const sizeWeightChart = formData.sizeWeightChart
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const match = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
+        if (!match) return null;
+        return {
+          size: match[1].toUpperCase(),
+          minWeightKg: Number(match[2]),
+          maxWeightKg: Number(match[3]),
+        };
+      })
+      .filter(Boolean);
 
-      const parsedSizeWeightChart = formData.sizeWeightChart
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((line) => {
-          const match = line.match(
-            /^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)(?:\s*[-–—]\s*|\s+)(\d+(?:\.\d+)?)(?:\s*kg)?$/i
-          );
-          if (!match) return null;
-          return {
-            size: match[1].toUpperCase(),
-            minWeightKg: Number(match[2]),
-            maxWeightKg: Number(match[3]),
-          };
-        });
+    const uploadedImages = await Promise.all(selectedFiles.map(fileToDataUrl));
 
-      if (parsedSizeWeightChart.some((entry) => entry === null)) {
-        setError('Invalid size-weight format. Use lines like: XL 55-75 kg or XL 55 75 kg');
-        setLoading(false);
-        return;
-      }
+    await post('/products', {
+      ...formData,
+      merchantPrice: Number(formData.merchantPrice),
+      suggestedCommission:
+        formData.suggestedCommission === '' ? null : Number(formData.suggestedCommission),
+      colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
+      sizeWeightChart,
+      images: uploadedImages,
+    });
 
-      const uploadedImages = await Promise.all(selectedFiles.map(fileToDataUrl));
-      const payload = {
-        ...formData,
-        price: Number(formData.price),
-        colors: formData.colors
-          .split(',')
-          .map((c) => c.trim())
-          .filter((c) => c.length > 0),
-        sizeWeightChart: parsedSizeWeightChart,
-        images: uploadedImages,
-      };
-
-      await post('/products', payload);
-      router.push('/admin/products');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create product');
-    } finally {
-      setLoading(false);
-    }
+    router.push('/admin/products');
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-card border-b border-border sticky top-0 z-40">
-        <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Link href="/admin/products">
-              <Button variant="ghost" size="sm">
-                Back to Products
-              </Button>
-            </Link>
-            <h1 className="text-lg font-bold text-foreground">New Product</h1>
-          </div>
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-foreground">Create product</h1>
+          <Link href="/admin/products">
+            <Button variant="outline">Back</Button>
+          </Link>
         </div>
-      </header>
 
-      <main className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
-        <Card className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Name</label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Slug</label>
-                <Input
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  placeholder="optional-custom-slug"
-                />
-              </div>
+        <Card className="rounded-3xl p-6">
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Product name</label>
+              <Input placeholder="Product name" value={formData.name} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Slug</label>
+              <Input placeholder="Slug" value={formData.slug} onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Merchant price</label>
+              <Input type="number" min="0" step="0.01" placeholder="Merchant price" value={formData.merchantPrice} onChange={(e) => setFormData((prev) => ({ ...prev, merchantPrice: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Suggested commission (optional)</label>
+              <Input type="number" min="0" step="0.01" placeholder="Suggested commission" value={formData.suggestedCommission} onChange={(e) => setFormData((prev) => ({ ...prev, suggestedCommission: e.target.value }))} />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Price</label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Category</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-md text-foreground bg-card"
-                >
-                  {PRODUCT_CATEGORIES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Gender</label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-md text-foreground bg-card"
-                >
-                  {GENDER_TYPES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Available Colors
-              </label>
-              <Input
-                value={formData.colors}
-                onChange={(e) => setFormData({ ...formData, colors: e.target.value })}
-                placeholder="Black, White, Navy Blue"
-              />
-              <p className="text-xs text-muted-foreground mt-2">
-                Enter color names separated by commas. Customers will choose one before adding to cart.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Size vs Weight (Kg)
-              </label>
-              <textarea
-                value={formData.sizeWeightChart}
-                onChange={(e) => setFormData({ ...formData, sizeWeightChart: e.target.value })}
-                rows={4}
-                className="w-full px-3 py-2 border border-border rounded-md text-foreground bg-card"
-                placeholder={'XL 55-75 kg\nXXL 75-100 kg'}
-              />
-              <p className="text-xs text-muted-foreground mt-2">
-                One line per size. Format: SIZE min-max kg
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Shipping System
-              </label>
-              <select
-                value={formData.shippingSystemId}
-                onChange={(e) => setFormData({ ...formData, shippingSystemId: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-md text-foreground bg-card"
-                required
-                disabled={shippingSystemsLoading}
-              >
-                {shippingSystems.length === 0 ? (
-                  <option value="">No shipping systems available</option>
-                ) : (
-                  shippingSystems.map((system) => (
-                    <option key={system._id} value={system._id}>
-                      {system.name}
-                    </option>
-                  ))
-                )}
-              </select>
-              <p className="text-xs text-muted-foreground mt-2">
-                Create and manage shipping systems in Admin Dashboard.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Availability</label>
-              <select
-                value={formData.availabilityStatus}
-                onChange={(e) => setFormData({ ...formData, availabilityStatus: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-md text-foreground bg-card"
-              >
-                {AVAILABILITY_STATUS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Category</label>
+              <select value={formData.category} onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
+                {PRODUCT_CATEGORIES.map((value) => (
+                  <option key={value} value={value}>{value}</option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-                className="w-full px-3 py-2 border border-border rounded-md text-foreground bg-card"
-              />
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Gender</label>
+              <select value={formData.gender} onChange={(e) => setFormData((prev) => ({ ...prev, gender: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
+                {GENDER_TYPES.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Upload Images (from your device)
-              </label>
-              <Input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileChange}
-              />
-              {selectedFiles.length > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {selectedFiles.length} image(s) selected
-                </p>
-              )}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Colors</label>
+              <Input placeholder="Colors separated by commas" value={formData.colors} onChange={(e) => setFormData((prev) => ({ ...prev, colors: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Sizes by weight</label>
+              <textarea value={formData.sizeWeightChart} onChange={(e) => setFormData((prev) => ({ ...prev, sizeWeightChart: e.target.value }))} className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder={'M 50-65\nL 65-80'} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Shipping system</label>
+              <select value={formData.shippingSystemId} onChange={(e) => setFormData((prev) => ({ ...prev, shippingSystemId: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
+                {shippingSystems.map((system) => (
+                  <option key={system._id} value={system._id}>{system.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-foreground">Product images</label>
+              <Input type="file" accept="image/*" multiple onChange={handleFileChange} />
               {imagePreviews.length > 0 && (
-                <div className="mt-3 grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {imagePreviews.map((src, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={src}
-                        alt={`Selected ${index + 1}`}
-                        className="w-full h-24 object-cover rounded border border-border"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 bg-black/70 text-white text-xs rounded px-1.5 py-0.5"
-                      >
-                        x
-                      </button>
+                    <div key={`new-image-preview-${index}`} className="space-y-2">
+                      <img src={src} alt={`Selected image ${index + 1}`} className="h-28 w-full rounded-xl border border-border object-cover" />
+                      <Button type="button" variant="outline" className="w-full" onClick={() => removeImage(index)}>
+                        Remove
+                      </Button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-
-            <div className="flex items-center gap-6">
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  checked={formData.featured}
-                  onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                />
-                Featured
-              </label>
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  checked={formData.onSale}
-                  onChange={(e) => setFormData({ ...formData, onSale: e.target.checked })}
-                />
-                On Sale
-              </label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Availability status</label>
+              <select value={formData.availabilityStatus} onChange={(e) => setFormData((prev) => ({ ...prev, availabilityStatus: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
+                {AVAILABILITY_STATUS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Description</label>
+              <textarea value={formData.description} onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} className="min-h-32 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Description" />
             </div>
 
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
-
-            <div className="flex gap-2">
-              <Link href="/admin/products" className="flex-1">
-                <Button type="button" variant="outline" className="w-full">
-                  Cancel
-                </Button>
-              </Link>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                {loading ? 'Creating...' : 'Create Product'}
-              </Button>
-            </div>
+            <Button type="submit" className="w-full">Save product</Button>
           </form>
         </Card>
       </main>

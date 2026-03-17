@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
@@ -11,97 +10,66 @@ import { AlertCircle } from 'lucide-react';
 export default function AdminLogin() {
   const router = useRouter();
   const { login } = useAdminAuth();
-  const [email, setEmail] = useState('admin@familystore.local');
+  const [email, setEmail] = useState('sameryousry99@gmail.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
 
     try {
       const result = await login(email, password);
       if (result.success) {
-        router.push('/admin/dashboard');
+        const role = result.admin?.role;
+        router.push(role === 'marketer' ? '/merchant-directory' : '/admin/dashboard');
       } else {
         setError(result.error || 'Invalid email or password');
       }
-    } catch (err) {
-      setError('An error occurred during login');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted to-background px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-card rounded-lg shadow-lg p-8 border border-border">
-          <div className="mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-lg font-bold text-primary-foreground">FS</span>
-              </div>
-            </div>
-            <h1 className="text-2xl font-bold text-center text-foreground mb-2">
-              FamilyStore Admin
-            </h1>
-            <p className="text-center text-muted-foreground">
-              Sign in to access the admin dashboard
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-gap-3">
-              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-destructive">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Email
-              </label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@familystore.local"
-                disabled={loading}
-                className="w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Password
-              </label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                disabled={loading}
-                className="w-full"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading || !email || !password}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
-          </form>
-
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Demo credentials: admin@familystore.local
+    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,#f5efe1,transparent_45%),linear-gradient(135deg,#fffef8,#f4efe4)] px-4">
+      <div className="w-full max-w-md rounded-3xl border border-stone-200 bg-white/95 p-8 shadow-2xl shadow-stone-200/60">
+        <div className="mb-8 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-stone-500">Affiliate Family Store</p>
+          <h1 className="mt-3 text-3xl font-bold text-stone-900">Role-Based Control Center</h1>
+          <p className="mt-2 text-sm text-stone-600">
+            Sign in as owner, super admin, merchant, or marketer.
           </p>
         </div>
+
+        {error && (
+          <div className="mb-5 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 text-red-500" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-stone-800">Email</label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-stone-800">Password</label>
+            <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+          </div>
+
+          <Button type="submit" disabled={loading || !email || !password} className="w-full">
+            {loading ? 'Signing in...' : 'Enter dashboard'}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-xs text-stone-500">
+          Protected owner account: sameryousry99@gmail.com
+        </p>
       </div>
     </div>
   );

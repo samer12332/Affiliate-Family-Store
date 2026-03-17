@@ -1,5 +1,6 @@
+import { requireRole, sanitizeUser } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { AdminUser } from '@/lib/models';
+import { User } from '@/lib/models';
 import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -9,64 +10,72 @@ export async function PATCH(
 ) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'super_admin']);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
     const body = await request.json();
-
-    const user = await AdminUser.findById(id);
+    const user = await User.findById(id);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    if (user.isProtected && auth.user.role !== 'owner') {
+      return NextResponse.json({ error: 'Protected owner cannot be modified by this user' }, { status: 403 });
+    }
+
+    if (user.isProtected && body.role && body.role !== 'owner') {
+      return NextResponse.json({ error: 'Protected owner role cannot be changed' }, { status: 400 });
+    }
+
+    if (user.isProtected && body.active === false) {
+      return NextResponse.json({ error: 'Protected owner cannot be deactivated' }, { status: 400 });
+    }
+
     const update: any = {};
 
+    if (body.name !== undefined) update.name = String(body.name).trim();
+    if (body.active !== undefined) update.active = Boolean(body.active);
     if (body.role !== undefined) {
-      if (!['admin', 'moderator'].includes(body.role)) {
+      if (!['owner', 'super_admin', 'merchant', 'marketer'].includes(body.role)) {
         return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
       }
       update.role = body.role;
     }
 
-    if (body.active !== undefined) {
-      const nextActive = Boolean(body.active);
-
-      // Prevent disabling the final active admin account.
-      const nextRole = update.role || user.role;
-      if (!nextActive && nextRole === 'admin') {
-        const otherActiveAdmins = await AdminUser.countDocuments({
-          _id: { $ne: user._id },
-          role: 'admin',
-          active: true,
-        });
-        if (otherActiveAdmins === 0) {
-          return NextResponse.json(
-            { error: 'Cannot deactivate the last active admin user' },
-            { status: 400 }
-          );
-        }
+    if (body.password) {
+      if (String(body.password).length < 6) {
+        return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
       }
-
-      update.active = nextActive;
+      update.password = await bcryptjs.hash(String(body.password), 10);
     }
 
-    if (body.password !== undefined) {
-      const password = String(body.password || '');
-      if (password.length < 6) {
-        return NextResponse.json(
-          { error: 'Password must be at least 6 characters' },
-          { status: 400 }
-        );
-      }
-      update.password = await bcryptjs.hash(password, 10);
+    if (body.storeName !== undefined || body.storeSlug !== undefined || body.phone !== undefined) {
+      update.merchantProfile = {
+        ...(user.merchantProfile || {}),
+        ...(body.storeName !== undefined ? { storeName: String(body.storeName).trim() } : {}),
+        ...(body.storeSlug !== undefined
+          ? {
+              slug: String(body.storeSlug)
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-'),
+            }
+          : {}),
+        ...(body.phone !== undefined ? { phone: String(body.phone).trim() } : {}),
+      };
     }
 
-    const updated = await AdminUser.findByIdAndUpdate(id, update, { new: true })
-      .select('email role active createdAt');
-
-    return NextResponse.json({ user: updated });
+    const updated = await User.findByIdAndUpdate(id, update, { new: true });
+    return NextResponse.json({ user: sanitizeUser(updated) });
   } catch (error: any) {
-    console.error('[v0] Admin user update API error:', error);
+    console.error('[v0] User update API error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to update admin user' },
+      { error: error.message || 'Failed to update user' },
       { status: 500 }
     );
   }
@@ -78,34 +87,31 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
-    const { id } = await params;
+    const auth = await requireRole(request, ['owner', 'super_admin']);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const user = await AdminUser.findById(id);
+    const { id } = await params;
+    const user = await User.findById(id);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Prevent deleting the final active admin account.
-    if (user.role === 'admin' && user.active) {
-      const otherActiveAdmins = await AdminUser.countDocuments({
-        _id: { $ne: user._id },
-        role: 'admin',
-        active: true,
-      });
-      if (otherActiveAdmins === 0) {
-        return NextResponse.json(
-          { error: 'Cannot delete the last active admin user' },
-          { status: 400 }
-        );
-      }
+    if (user.isProtected) {
+      return NextResponse.json({ error: 'Protected owner cannot be deleted' }, { status: 403 });
     }
 
-    await AdminUser.findByIdAndDelete(id);
+    if (auth.user._id.toString() === user._id.toString()) {
+      return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
+    }
+
+    await User.findByIdAndDelete(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[v0] Admin user delete API error:', error);
+    console.error('[v0] User delete API error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to delete admin user' },
+      { error: error.message || 'Failed to delete user' },
       { status: 500 }
     );
   }

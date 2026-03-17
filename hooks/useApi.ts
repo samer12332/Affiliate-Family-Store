@@ -10,10 +10,15 @@ export const useApi = () => {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<any> => {
+    const authToken =
+      typeof window !== "undefined" ? window.localStorage.getItem("admin-token") : null;
     const url = `${API_URL}${endpoint}`;
     const response = await fetch(url, {
       headers: {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(authToken && !(options.headers as Record<string, string> | undefined)?.Authorization
+          ? { Authorization: `Bearer ${authToken}` }
+          : {}),
         ...options.headers,
       },
       ...options,

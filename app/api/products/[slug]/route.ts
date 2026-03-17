@@ -1,7 +1,17 @@
+import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem } from '@/lib/models';
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+
+async function findProduct(decoded: string) {
+  let product = await Product.findOne({ slug: decoded.toLowerCase() });
+  if (!product && mongoose.Types.ObjectId.isValid(decoded)) {
+    product = await Product.findById(decoded);
+  }
+
+  return product;
+}
 
 export async function GET(
   request: NextRequest,
@@ -10,20 +20,10 @@ export async function GET(
   try {
     await connectDB();
     const { slug } = await params;
-    const decoded = decodeURIComponent(slug || '').trim();
-
-    let product = await Product.findOne({ slug: decoded.toLowerCase() });
-
-    // Backward-compat fallback: if slug lookup misses but value is an ObjectId, try by id.
-    if (!product && mongoose.Types.ObjectId.isValid(decoded)) {
-      product = await Product.findById(decoded);
-    }
+    const product = await findProduct(decodeURIComponent(slug || '').trim());
 
     if (!product) {
-      return NextResponse.json(
-        { error: 'Product not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
     return NextResponse.json({ product });
@@ -42,70 +42,76 @@ export async function PUT(
 ) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'merchant']);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { slug } = await params;
     const decoded = decodeURIComponent(slug || '').trim();
-    const body = await request.json();
+    const product = await findProduct(decoded);
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
 
+    if (!canManageMerchantResource(auth.user, product.merchantId.toString())) {
+      return NextResponse.json({ error: 'You cannot edit this product' }, { status: 403 });
+    }
+
+    const body = await request.json();
     const update: any = {};
     if (body.name !== undefined) update.name = String(body.name).trim();
-    if (body.slug !== undefined && String(body.slug).trim().length > 0) {
-      update.slug = String(body.slug).toLowerCase().trim();
+    if (body.slug !== undefined && String(body.slug).trim()) update.slug = String(body.slug).trim().toLowerCase();
+    if (body.merchantPrice !== undefined || body.price !== undefined) {
+      const merchantPrice = Number(body.merchantPrice ?? body.price);
+      update.merchantPrice = merchantPrice;
+      update.price = merchantPrice;
     }
-    if (body.price !== undefined) update.price = Number(body.price);
+    if (body.suggestedCommission !== undefined) {
+      update.suggestedCommission =
+        body.suggestedCommission === '' || body.suggestedCommission === null
+          ? null
+          : Number(body.suggestedCommission);
+    }
     if (body.category !== undefined) update.category = body.category;
     if (body.gender !== undefined) update.gender = body.gender;
+    if (body.description !== undefined) update.description = String(body.description || '');
+    if (body.images !== undefined) update.images = Array.isArray(body.images) ? body.images : [];
+    if (body.availabilityStatus !== undefined) update.availabilityStatus = body.availabilityStatus;
+    if (body.featured !== undefined) update.featured = Boolean(body.featured);
+    if (body.onSale !== undefined) update.onSale = Boolean(body.onSale);
     if (body.colors !== undefined) {
       update.colors = Array.isArray(body.colors)
-        ? body.colors.map((c: any) => String(c).trim()).filter((c: string) => c.length > 0)
+        ? body.colors.map((value: any) => String(value).trim()).filter(Boolean)
         : [];
     }
     if (body.sizeWeightChart !== undefined) {
-      const normalizedSizeWeightChart = Array.isArray(body.sizeWeightChart)
+      const sizeWeightChart = Array.isArray(body.sizeWeightChart)
         ? body.sizeWeightChart
             .map((entry: any) => ({
               size: String(entry?.size || '').trim(),
               minWeightKg: Number(entry?.minWeightKg),
               maxWeightKg: Number(entry?.maxWeightKg),
             }))
-            .filter((entry: any) =>
-              entry.size.length > 0 &&
-              Number.isFinite(entry.minWeightKg) &&
-              Number.isFinite(entry.maxWeightKg) &&
-              entry.minWeightKg >= 0 &&
-              entry.maxWeightKg >= entry.minWeightKg
-            )
+            .filter((entry: any) => entry.size && Number.isFinite(entry.minWeightKg) && Number.isFinite(entry.maxWeightKg))
         : [];
-
-      update.sizeWeightChart = normalizedSizeWeightChart;
-      update.sizes = Array.from(new Set(normalizedSizeWeightChart.map((entry: any) => entry.size)));
+      update.sizeWeightChart = sizeWeightChart;
+      update.sizes = sizeWeightChart.map((entry: any) => entry.size);
     }
-    if (body.description !== undefined) update.description = body.description || '';
-    if (body.images !== undefined) update.images = Array.isArray(body.images) ? body.images : [];
-    if (body.availabilityStatus !== undefined) update.availabilityStatus = body.availabilityStatus;
-    if (body.featured !== undefined) update.featured = Boolean(body.featured);
-    if (body.onSale !== undefined) update.onSale = Boolean(body.onSale);
     if (body.shippingSystemId !== undefined) {
       const shippingSystem = await ShippingSystem.findById(body.shippingSystemId);
       if (!shippingSystem) {
         return NextResponse.json({ error: 'Invalid shipping system' }, { status: 400 });
       }
+
+      if (shippingSystem.merchantId.toString() !== product.merchantId.toString()) {
+        return NextResponse.json({ error: 'Shipping system does not belong to this merchant' }, { status: 400 });
+      }
       update.shippingSystemId = body.shippingSystemId;
     }
 
-    let product = null;
-    if (mongoose.Types.ObjectId.isValid(decoded)) {
-      product = await Product.findByIdAndUpdate(decoded, update, { new: true });
-    }
-
-    if (!product) {
-      product = await Product.findOneAndUpdate({ slug: decoded.toLowerCase() }, update, { new: true });
-    }
-
-    if (!product) {
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ product });
+    const updated = await Product.findByIdAndUpdate(product._id, update, { new: true });
+    return NextResponse.json({ product: updated });
   } catch (error: any) {
     console.error('[v0] Product update error:', error);
     return NextResponse.json(
@@ -121,22 +127,22 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'merchant']);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { slug } = await params;
-    const decoded = decodeURIComponent(slug || '').trim();
-
-    let product = null;
-    if (mongoose.Types.ObjectId.isValid(decoded)) {
-      product = await Product.findByIdAndDelete(decoded);
-    }
-
-    if (!product) {
-      product = await Product.findOneAndDelete({ slug: decoded.toLowerCase() });
-    }
-
+    const product = await findProduct(decodeURIComponent(slug || '').trim());
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
+    if (!canManageMerchantResource(auth.user, product.merchantId.toString())) {
+      return NextResponse.json({ error: 'You cannot delete this product' }, { status: 403 });
+    }
+
+    await Product.findByIdAndDelete(product._id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('[v0] Product delete error:', error);

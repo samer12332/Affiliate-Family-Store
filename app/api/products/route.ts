@@ -1,5 +1,6 @@
+import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { Product, ShippingSystem } from '@/lib/models';
+import { Product, ShippingSystem, User } from '@/lib/models';
 import { NextRequest, NextResponse } from 'next/server';
 
 function slugify(value: string): string {
@@ -17,7 +18,6 @@ async function generateUniqueSlug(base: string): Promise<string> {
   let candidate = root;
   let counter = 2;
 
-  // Ensure slug uniqueness by appending a numeric suffix when needed.
   while (await Product.findOne({ slug: candidate })) {
     candidate = `${root}-${counter}`;
     counter += 1;
@@ -30,48 +30,35 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
+    const authUser = await getAuthUser(request);
     const searchParams = request.nextUrl.searchParams;
     const featured = searchParams.get('featured') === 'true';
     const category = searchParams.get('category');
     const gender = searchParams.get('gender');
     const search = searchParams.get('search');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const page = parseInt(searchParams.get('page') || '1');
+    const merchantIdParam = searchParams.get('merchantId');
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const page = parseInt(searchParams.get('page') || '1', 10);
     const skip = (page - 1) * limit;
 
     const query: any = {};
-    const normalizeCategory = (value: string) => {
-      const v = String(value || '').trim().toLowerCase();
-      if (v === 'clothes') return 'Clothes';
-      if (v === 'shoes') return 'Shoes';
-      if (v === 'others' || v === 'accessories') return 'Others';
-      return value;
-    };
-    const normalizeGender = (value: string) => {
-      const v = String(value || '').trim().toLowerCase();
-      if (v === 'men') return 'Men';
-      if (v === 'women') return 'Women';
-      if (v === 'children') return 'Children';
-      if (v === 'unisex' || v === 'gender neutral' || v === 'gender-neutral') return 'Unisex';
-      return value;
-    };
-
     if (featured) query.featured = true;
-    if (category) query.category = normalizeCategory(category);
-    if (gender) query.gender = normalizeGender(gender);
+    if (category) query.category = category;
+    if (gender) query.gender = gender;
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } },
-      ];
+      query.$or = [{ name: { $regex: search, $options: 'i' } }, { sku: { $regex: search, $options: 'i' } }];
     }
 
-    const products = await Product.find(query)
-      .limit(limit)
-      .skip(skip)
-      .sort({ createdAt: -1 });
+    if (merchantIdParam) {
+      query.merchantId = merchantIdParam;
+    } else if (authUser?.role === 'merchant') {
+      query.merchantId = authUser._id;
+    }
 
-    const total = await Product.countDocuments(query);
+    const [products, total] = await Promise.all([
+      Product.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip),
+      Product.countDocuments(query),
+    ]);
 
     return NextResponse.json({
       products,
@@ -95,80 +82,74 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'merchant']);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     const body = await request.json();
-    const {
-      name,
-      slug,
-      price,
-      category,
-      gender,
-      colors,
-      sizeWeightChart,
-      sizes,
-      shippingSystemId,
-      description,
-      images,
-      availabilityStatus,
-      featured,
-      onSale,
-    } = body;
-
-    if (!name || price === undefined || !category || !gender || !shippingSystemId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    const merchantId = String(body?.merchantId || auth.user._id);
+    if (!canManageMerchantResource(auth.user, merchantId)) {
+      return NextResponse.json({ error: 'You cannot create products for this merchant' }, { status: 403 });
     }
 
-    const shippingSystem = await ShippingSystem.findById(shippingSystemId);
+    const shippingSystem = await ShippingSystem.findById(body?.shippingSystemId);
     if (!shippingSystem) {
-      return NextResponse.json(
-        { error: 'Invalid shipping system' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid shipping system' }, { status: 400 });
     }
 
-    const finalSlug = await generateUniqueSlug(String(slug || name));
-    const normalizedSizeWeightChart = Array.isArray(sizeWeightChart)
-      ? sizeWeightChart
+    if (shippingSystem.merchantId.toString() !== merchantId) {
+      return NextResponse.json({ error: 'Shipping system does not belong to this merchant' }, { status: 400 });
+    }
+
+    const merchant = await User.findById(merchantId);
+    if (!merchant || merchant.role !== 'merchant') {
+      return NextResponse.json({ error: 'Merchant not found' }, { status: 404 });
+    }
+
+    const merchantPrice = Number(body?.merchantPrice ?? body?.price);
+    if (!Number.isFinite(merchantPrice) || merchantPrice < 0) {
+      return NextResponse.json({ error: 'Valid merchant price is required' }, { status: 400 });
+    }
+    const suggestedCommission =
+      body?.suggestedCommission === '' || body?.suggestedCommission === null || body?.suggestedCommission === undefined
+        ? null
+        : Number(body.suggestedCommission);
+    if (suggestedCommission !== null && (!Number.isFinite(suggestedCommission) || suggestedCommission < 0)) {
+      return NextResponse.json({ error: 'Suggested commission must be a valid positive number' }, { status: 400 });
+    }
+
+    const finalSlug = await generateUniqueSlug(String(body?.slug || body?.name));
+    const sizeWeightChart = Array.isArray(body?.sizeWeightChart)
+      ? body.sizeWeightChart
           .map((entry: any) => ({
             size: String(entry?.size || '').trim(),
             minWeightKg: Number(entry?.minWeightKg),
             maxWeightKg: Number(entry?.maxWeightKg),
           }))
-          .filter((entry: any) =>
-            entry.size.length > 0 &&
-            Number.isFinite(entry.minWeightKg) &&
-            Number.isFinite(entry.maxWeightKg) &&
-            entry.minWeightKg >= 0 &&
-            entry.maxWeightKg >= entry.minWeightKg
-          )
+          .filter((entry: any) => entry.size && Number.isFinite(entry.minWeightKg) && Number.isFinite(entry.maxWeightKg))
       : [];
-    const normalizedSizes =
-      normalizedSizeWeightChart.length > 0
-        ? Array.from(new Set(normalizedSizeWeightChart.map((entry: any) => entry.size)))
-        : Array.isArray(sizes)
-          ? sizes.map((s: any) => String(s).trim()).filter((s: string) => s.length > 0)
-          : [];
 
     const product = await Product.create({
-      name: String(name).trim(),
+      merchantId,
+      name: String(body?.name || '').trim(),
       slug: finalSlug,
-      price: Number(price),
-      category,
-      gender,
-      colors: Array.isArray(colors)
-        ? colors.map((c: any) => String(c).trim()).filter((c: string) => c.length > 0)
-        : [],
-      sizeWeightChart: normalizedSizeWeightChart,
-      sizes: normalizedSizes,
-      shippingSystemId,
-      description: description || '',
-      images: Array.isArray(images) ? images.filter((img) => typeof img === 'string' && img.length > 0) : [],
-      availabilityStatus: availabilityStatus || 'Available',
-      featured: Boolean(featured),
-      onSale: Boolean(onSale),
+      merchantPrice,
+      suggestedCommission,
+      price: merchantPrice,
+      category: body?.category,
+      gender: body?.gender,
+      colors: Array.isArray(body?.colors) ? body.colors.map((value: any) => String(value).trim()).filter(Boolean) : [],
+      sizeWeightChart,
+      sizes: sizeWeightChart.map((entry: any) => entry.size),
+      shippingSystemId: shippingSystem._id,
+      description: String(body?.description || ''),
+      images: Array.isArray(body?.images) ? body.images.filter((img: any) => typeof img === 'string' && img) : [],
+      availabilityStatus: body?.availabilityStatus || 'Available',
+      featured: Boolean(body?.featured),
+      onSale: Boolean(body?.onSale),
+      brand: merchant.merchantProfile?.storeName || merchant.name,
+      sku: String(body?.sku || '').trim(),
     });
 
     return NextResponse.json({ product }, { status: 201 });

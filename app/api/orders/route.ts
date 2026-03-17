@@ -1,78 +1,144 @@
+import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { Order, Product, ShippingSystem } from '@/lib/models';
-import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
+import { OWNER_COMMISSION_RATE } from '@/lib/constants';
+import { Commission, Order, Product, ShippingSystem } from '@/lib/models';
 import { NextRequest, NextResponse } from 'next/server';
 
-function normalize(text: string) {
-  return String(text || '').trim().toLowerCase();
+async function generateOrderNumber(): Promise<string> {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateString = `${year}${month}${day}`;
+
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const ordersToday = await Order.countDocuments({ createdAt: { $gte: startOfDay, $lt: endOfDay } });
+  return `FAM-${dateString}-${String(ordersToday + 1).padStart(3, '0')}`;
 }
 
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function normalizeGovernorate(value: string) {
+  return String(value || '').trim().toLowerCase();
 }
 
-async function resolveCartProduct(cartItem: any) {
-  const byId = cartItem?.productId ? await Product.findById(cartItem.productId) : null;
-  if (byId?.shippingSystemId) return byId;
+async function buildOrderDetails(orderProducts: any[], governorate: string, merchantId: string) {
+  const items = [];
+  let subtotal = 0;
+  let shippingFee = 0;
 
-  const normalizedSlug = normalize(cartItem?.productSlug);
-  if (normalizedSlug) {
-    const bySlug = await Product.findOne({ slug: normalizedSlug });
-    if (bySlug?.shippingSystemId) return bySlug;
-  }
+  for (const entry of orderProducts) {
+    const product = await Product.findById(entry.productId);
+    if (!product) {
+      throw new Error('One or more selected products no longer exist');
+    }
 
-  const normalizedName = normalize(cartItem?.productName);
-  if (normalizedName) {
-    const byName = await Product.findOne({ name: new RegExp(`^${escapeRegex(normalizedName)}$`, 'i') }).sort({
-      updatedAt: -1,
+    if (product.merchantId.toString() !== merchantId) {
+      throw new Error('Orders can only contain products from the same merchant');
+    }
+
+    const shippingSystem = await ShippingSystem.findById(product.shippingSystemId);
+    if (!shippingSystem || shippingSystem.merchantId.toString() !== merchantId) {
+      throw new Error(`Product "${product.name}" does not have a valid merchant shipping system`);
+    }
+
+    const matchedFee = shippingSystem.governorateFees.find(
+      (rate: any) => normalizeGovernorate(rate.governorate) === normalizeGovernorate(governorate)
+    );
+
+    if (!matchedFee) {
+      throw new Error(`No shipping fee configured for governorate "${governorate}"`);
+    }
+
+    const quantity = Math.max(1, Number(entry.quantity || 1));
+    const salePriceByMarketer = Number(entry.salePriceByMarketer);
+    if (!Number.isFinite(salePriceByMarketer) || salePriceByMarketer < 0) {
+      throw new Error(`Invalid selling price for "${product.name}"`);
+    }
+
+    const merchantPrice = Number(product.merchantPrice ?? product.price ?? 0);
+    const lineSubtotal = salePriceByMarketer * quantity;
+    const marketerProfit = Math.max(salePriceByMarketer - merchantPrice, 0) * quantity;
+
+    subtotal += lineSubtotal;
+    shippingFee += Number(matchedFee.fee) * quantity;
+
+    items.push({
+      productId: product._id,
+      productName: product.name,
+      productSlug: product.slug,
+      productImage: product.images?.[0] || '',
+      selectedColor: String(entry.selectedColor || ''),
+      selectedSize: String(entry.selectedSize || ''),
+      quantity,
+      salePriceByMarketer,
+      merchantPrice,
+      lineSubtotal,
+      marketerProfit,
     });
-    if (byName?.shippingSystemId) return byName;
   }
 
-  return byId;
-}
-
-async function resolveProductShippingSystem(product: any) {
-  if (product.shippingSystemId) {
-    const assigned = await ShippingSystem.findById(product.shippingSystemId);
-    if (assigned) return assigned;
-  }
-
-  // Auto-heal legacy products with missing assignment when there is only one active shipping system.
-  const activeSystems = await ShippingSystem.find({ active: true }).sort({ createdAt: -1 });
-  if (activeSystems.length === 1) {
-    product.shippingSystemId = activeSystems[0]._id;
-    await product.save();
-    return activeSystems[0];
-  }
-
-  return null;
+  return {
+    items,
+    subtotal,
+    shippingFee,
+    total: subtotal + shippingFee,
+    marketerAmount: items.reduce((sum, item) => sum + item.marketerProfit, 0),
+    ownerAmount: subtotal * OWNER_COMMISSION_RATE,
+  };
 }
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'super_admin', 'merchant', 'marketer']);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     const searchParams = request.nextUrl.searchParams;
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const page = parseInt(searchParams.get('page') || '1');
     const status = searchParams.get('status');
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const page = parseInt(searchParams.get('page') || '1', 10);
     const skip = (page - 1) * limit;
-    const query: any = {};
 
+    const query: any = {};
     if (status) {
       query.status = status;
     }
 
-    const orders = await Order.find(query)
-      .limit(limit)
-      .skip(skip)
-      .sort({ createdAt: -1 });
+    if (auth.user.role === 'merchant') {
+      query.merchantId = auth.user._id;
+    }
 
+    if (auth.user.role === 'marketer') {
+      query.marketerId = auth.user._id;
+    }
+
+    const orders = await Order.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
     const total = await Order.countDocuments(query);
+    const commissionMap = new Map(
+      (
+        await Commission.find({
+          orderId: { $in: orders.map((order) => order._id) },
+        })
+      ).map((entry: any) => [entry.orderId.toString(), entry])
+    );
 
     return NextResponse.json({
-      orders,
+      orders: orders.map((order: any) => {
+        const commission = commissionMap.get(order._id.toString());
+        const canSeeDues =
+          order.status === 'delivered' || auth.user.role === 'merchant' || auth.user.role === 'owner' || auth.user.role === 'super_admin';
+
+        return {
+          ...order.toObject(),
+          marketerDuesVisible: canSeeDues,
+          marketerAmount: canSeeDues ? Number(commission?.marketerAmount || 0) : 0,
+          ownerAmount: auth.user.role === 'owner' || auth.user.role === 'super_admin' || auth.user.role === 'merchant'
+            ? Number(commission?.ownerAmount || 0)
+            : undefined,
+        };
+      }),
       total,
       pagination: {
         page,
@@ -92,120 +158,41 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'super_admin', 'marketer']);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     const body = await request.json();
-    const { cartItems, customerInfo, shippingAddress } = body;
+    const merchantId = String(body?.merchantId || '');
+    const itemsPayload = Array.isArray(body?.items) ? body.items : [];
+    const customer = body?.customer || {};
+    const governorate = String(body?.governorate || '').trim();
 
-    if (!cartItems || !customerInfo || !shippingAddress) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-    if (!String(shippingAddress?.detailedAddress || '').trim()) {
-      return NextResponse.json(
-        { error: 'Detailed address is required' },
-        { status: 400 }
-      );
+    if (!merchantId || itemsPayload.length === 0 || !customer?.name || !customer?.phone || !customer?.addressLine || !governorate) {
+      return NextResponse.json({ error: 'Missing required order fields' }, { status: 400 });
     }
 
-    // Validate governorate
-    const govList = EGYPTIAN_GOVERNORATES;
-    if (!govList.includes(shippingAddress.governorate)) {
-      return NextResponse.json(
-        { error: 'Invalid governorate' },
-        { status: 400 }
-      );
-    }
-
-    // Build order items with snapshots and shipping-system rules
-    const items = [];
-    let subtotal = 0;
-    let shippingFee = 0;
-
-    for (const cartItem of cartItems) {
-      const product = await resolveCartProduct(cartItem);
-
-      if (!product) {
-        return NextResponse.json(
-          { error: `Product ${cartItem.productId} not found` },
-          { status: 404 }
-        );
-      }
-
-      const unitPrice = product.discountPrice || product.price;
-      const itemTotal = unitPrice * cartItem.quantity;
-      subtotal += itemTotal;
-
-      let itemShippingFee = 0;
-      let refusalPolicy: string | undefined;
-      let shippingNotes: string | undefined;
-
-      const shippingSystem = await resolveProductShippingSystem(product);
-      if (!shippingSystem) {
-        return NextResponse.json(
-          { error: `Product "${product.name}" does not have an assigned shipping system` },
-          { status: 400 }
-        );
-      }
-
-      const matchedGovernorate = shippingSystem.governorateFees.find(
-        (entry: any) => normalize(entry.governorate) === normalize(shippingAddress.governorate)
-      );
-
-      if (!matchedGovernorate) {
-        return NextResponse.json(
-          {
-            error: `No shipping fee configured for "${product.name}" to governorate "${shippingAddress.governorate}" in shipping system "${shippingSystem.name}"`,
-          },
-          { status: 400 }
-        );
-      }
-
-      itemShippingFee = Number(matchedGovernorate.fee);
-      if (!Number.isFinite(itemShippingFee) || itemShippingFee < 0) {
-        return NextResponse.json(
-          {
-            error: `Invalid shipping fee for "${product.name}" in shipping system "${shippingSystem.name}"`,
-          },
-          { status: 400 }
-        );
-      }
-      refusalPolicy = shippingSystem.refusalPolicy;
-      shippingNotes = shippingSystem.notes || '';
-
-      shippingFee += itemShippingFee * cartItem.quantity;
-
-      items.push({
-        productId: product._id,
-        productName: product.name,
-        productSlug: product.slug,
-        selectedColor: cartItem.color,
-        selectedSize: cartItem.size,
-        quantity: cartItem.quantity,
-        unitPrice,
-        productImage: product.images[0] || '',
-        shippingFee: itemShippingFee,
-        shippingSystemId: product.shippingSystemId || null,
-        refusalPolicy,
-        shippingNotes,
-        supplierReference: product.supplierInfo?.reference || null,
-        returnEligibility: product.returnPolicy?.eligible || false,
-      });
-    }
-
-    const order = new Order({
+    const calculated = await buildOrderDetails(itemsPayload, governorate, merchantId);
+    const order = await Order.create({
       orderNumber: await generateOrderNumber(),
-      customer: customerInfo,
-      shippingAddress,
-      items,
-      subtotal,
-      shippingFee,
-      total: subtotal + shippingFee,
-      status: 'Pending Review',
+      merchantId,
+      marketerId: auth.user._id,
+      customer: {
+        name: String(customer.name).trim(),
+        phone: String(customer.phone).trim(),
+        email: String(customer.email || '').trim(),
+        addressLine: String(customer.addressLine).trim(),
+        notes: String(customer.notes || '').trim(),
+      },
+      governorate,
+      shippingFee: calculated.shippingFee,
+      subtotal: calculated.subtotal,
+      total: calculated.total,
+      status: 'pending',
+      items: calculated.items,
+      statusHistory: [{ status: 'pending', changedBy: auth.user._id }],
     });
-
-    await order.save();
 
     return NextResponse.json(
       {
@@ -213,6 +200,7 @@ export async function POST(request: NextRequest) {
         order: {
           id: order._id,
           orderNumber: order.orderNumber,
+          status: order.status,
           total: order.total,
         },
       },
@@ -225,22 +213,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-async function generateOrderNumber(): Promise<string> {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const dateString = `${year}${month}${day}`;
-
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-  const ordersToday = await Order.countDocuments({
-    createdAt: { $gte: startOfDay, $lt: endOfDay },
-  });
-
-  const sequence = String(ordersToday + 1).padStart(3, '0');
-  return `FAM-${dateString}-${sequence}`;
 }
