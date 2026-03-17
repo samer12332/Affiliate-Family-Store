@@ -7,6 +7,7 @@ import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { isAdminRole, isMainMerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function UsersPage() {
   const router = useRouter();
@@ -20,10 +21,11 @@ export default function UsersPage() {
     name: '',
     email: '',
     password: '',
-    role: 'merchant',
+    role: 'submerchant',
     storeName: '',
     storeSlug: '',
     phone: '',
+    mainMerchantId: '',
   });
 
   useEffect(() => {
@@ -40,10 +42,14 @@ export default function UsersPage() {
 
   if (isLoading || !token || !admin) return null;
 
-  if (!['owner', 'super_admin'].includes(admin.role)) {
+  const role = normalizeRole(admin.role);
+
+  if (!isAdminRole(role) && !isMainMerchantRole(role)) {
     router.push('/admin/dashboard');
     return null;
   }
+
+  const mainMerchants = users.filter((entry) => normalizeRole(entry.role) === 'main_merchant');
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
@@ -64,10 +70,11 @@ export default function UsersPage() {
         name: '',
         email: '',
         password: '',
-        role: 'merchant',
+        role: 'submerchant',
         storeName: '',
         storeSlug: '',
         phone: '',
+        mainMerchantId: '',
       });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create user');
@@ -83,7 +90,7 @@ export default function UsersPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Users</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Super admins can add merchants and marketers. Protected owner deletion is blocked in both UI and API.
+              Main merchants can add their own submerchants and marketers. Admin and owner can manage all users.
             </p>
           </div>
           <Link href="/admin/dashboard">
@@ -97,13 +104,23 @@ export default function UsersPage() {
             <input type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Email" />
             <input value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Password" />
             <select value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm">
-              <option value="merchant">merchant</option>
+              {isMainMerchantRole(role) ? null : <option value="main_merchant">main_merchant</option>}
+              <option value="submerchant">submerchant</option>
               <option value="marketer">marketer</option>
-              {admin.role === 'owner' && <option value="super_admin">super_admin</option>}
+              {role === 'owner' && <option value="admin">admin</option>}
+              {role === 'owner' && <option value="super_admin">super_admin</option>}
             </select>
-            <input value={form.storeName} onChange={(e) => setForm((prev) => ({ ...prev, storeName: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Store name for merchants" />
+            <input value={form.storeName} onChange={(e) => setForm((prev) => ({ ...prev, storeName: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Store name for submerchants" />
             <input value={form.storeSlug} onChange={(e) => setForm((prev) => ({ ...prev, storeSlug: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Store slug" />
             <input value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Phone" />
+            {!isMainMerchantRole(role) && (form.role === 'submerchant' || form.role === 'marketer') && (
+              <select value={form.mainMerchantId} onChange={(e) => setForm((prev) => ({ ...prev, mainMerchantId: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm">
+                <option value="">No main merchant (global visibility)</option>
+                {mainMerchants.map((entry) => (
+                  <option key={entry._id} value={entry._id}>{entry.name}</option>
+                ))}
+              </select>
+            )}
             <Button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create user'}</Button>
           </form>
           {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
@@ -116,7 +133,7 @@ export default function UsersPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">{user.name}</h2>
                   <p className="text-sm text-muted-foreground">{user.email}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">{user.role}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">{normalizeRole(user.role)}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {!user.isProtected && (

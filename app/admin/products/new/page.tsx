@@ -8,7 +8,14 @@ import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { AVAILABILITY_STATUS, GENDER_TYPES, PRODUCT_CATEGORIES } from '@/lib/constants';
+import {
+  AVAILABILITY_STATUS,
+  GENDER_TYPES,
+  MAIN_MERCHANT_COMMISSION_RATE,
+  OWNER_COMMISSION_RATE,
+  PRODUCT_CATEGORIES,
+} from '@/lib/constants';
+import { isAdminRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -17,10 +24,12 @@ export default function NewProductPage() {
   const [shippingSystems, setShippingSystems] = useState<any[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
     merchantPrice: '',
+    stock: '',
     suggestedCommission: '',
     category: PRODUCT_CATEGORIES[0],
     gender: GENDER_TYPES[0],
@@ -49,8 +58,25 @@ export default function NewProductPage() {
   }, [get, isLoading, router, token]);
 
   if (isLoading || !token || !admin) return null;
+  const role = normalizeRole(admin.role);
+  if (!isAdminRole(role) && !isSubmerchantRole(role)) {
+    router.push('/admin/dashboard');
+    return null;
+  }
+  const hasMainMerchant = Boolean(admin.mainMerchantId);
+  const totalCommissionRate =
+    OWNER_COMMISSION_RATE + (hasMainMerchant ? MAIN_MERCHANT_COMMISSION_RATE : 0);
+  const isShoesCategory = formData.category === 'Shoes';
 
-  const parseSizeLines = (value: string) => {
+  const parseSizeInput = (value: string, isShoes: boolean) => {
+    if (isShoes) {
+      const sizes = value
+        .split(/[\n,]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      return { sizeWeightChart: [], sizes };
+    }
+
     const sizeWeightChart: Array<{ size: string; minWeightKg: number; maxWeightKg: number }> = [];
     const sizes: string[] = [];
 
@@ -59,7 +85,7 @@ export default function NewProductPage() {
       .map((line) => line.trim())
       .filter(Boolean)
       .forEach((line) => {
-        const weighted = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
+        const weighted = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*[-–—]\s*(\d+(?:\.\d+)?)/);
         if (weighted) {
           sizeWeightChart.push({
             size: weighted[1].toUpperCase(),
@@ -103,22 +129,38 @@ export default function NewProductPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const { sizeWeightChart, sizes } = parseSizeLines(formData.sizeWeightChart);
+    setError('');
 
-    const uploadedImages = await Promise.all(selectedFiles.map(fileToDataUrl));
+    if (!formData.shippingSystemId) {
+      setError('Please create or select a shipping system before saving this product.');
+      return;
+    }
+    if (!Number.isInteger(Number(formData.stock)) || Number(formData.stock) < 0) {
+      setError('Please provide a valid non-negative stock quantity.');
+      return;
+    }
 
-    await post('/products', {
-      ...formData,
-      merchantPrice: Number(formData.merchantPrice),
-      suggestedCommission:
-        formData.suggestedCommission === '' ? null : Number(formData.suggestedCommission),
-      colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
-      sizeWeightChart,
-      sizes,
-      images: uploadedImages,
-    });
+    const { sizeWeightChart, sizes } = parseSizeInput(formData.sizeWeightChart, isShoesCategory);
 
-    router.push('/admin/products');
+    try {
+      const uploadedImages = await Promise.all(selectedFiles.map(fileToDataUrl));
+
+      await post('/products', {
+        ...formData,
+        merchantPrice: Number(formData.merchantPrice),
+        stock: Number(formData.stock),
+        suggestedCommission:
+          formData.suggestedCommission === '' ? null : Number(formData.suggestedCommission),
+        colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
+        sizeWeightChart,
+        sizes,
+        images: uploadedImages,
+      });
+
+      router.push('/admin/products');
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to create product');
+    }
   };
 
   return (
@@ -144,6 +186,17 @@ export default function NewProductPage() {
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Merchant price</label>
               <Input type="number" min="0" step="0.01" placeholder="Merchant price" value={formData.merchantPrice} onChange={(e) => setFormData((prev) => ({ ...prev, merchantPrice: e.target.value }))} />
+              {isSubmerchantRole(role) && (
+                <p className="text-xs text-muted-foreground">
+                  This price includes commission deductions of {(totalCommissionRate * 100).toFixed(0)}%
+                  ({(OWNER_COMMISSION_RATE * 100).toFixed(0)}% system owner
+                  {hasMainMerchant ? ` + ${(MAIN_MERCHANT_COMMISSION_RATE * 100).toFixed(0)}% main merchant` : ''}).
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Stock quantity</label>
+              <Input type="number" min="0" step="1" placeholder="Stock quantity" value={formData.stock} onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Suggested commission (optional)</label>
@@ -173,12 +226,13 @@ export default function NewProductPage() {
               <Input placeholder="Colors separated by commas" value={formData.colors} onChange={(e) => setFormData((prev) => ({ ...prev, colors: e.target.value }))} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Sizes by weight</label>
-              <textarea value={formData.sizeWeightChart} onChange={(e) => setFormData((prev) => ({ ...prev, sizeWeightChart: e.target.value }))} className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder={'M 50-65\nL 65-80'} />
+              <label className="text-sm font-medium text-foreground">{isShoesCategory ? 'Sizes' : 'Sizes by weight'}</label>
+              <textarea value={formData.sizeWeightChart} onChange={(e) => setFormData((prev) => ({ ...prev, sizeWeightChart: e.target.value }))} className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder={isShoesCategory ? '41, 42, 43, 44, 45' : 'M 50-65\nL 65-80'} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Shipping system</label>
               <select value={formData.shippingSystemId} onChange={(e) => setFormData((prev) => ({ ...prev, shippingSystemId: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
+                {shippingSystems.length === 0 && <option value="">No shipping systems available</option>}
                 {shippingSystems.map((system) => (
                   <option key={system._id} value={system._id}>{system.name}</option>
                 ))}
@@ -213,6 +267,7 @@ export default function NewProductPage() {
               <textarea value={formData.description} onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} className="min-h-32 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Description" />
             </div>
 
+            {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full">Save product</Button>
           </form>
         </Card>

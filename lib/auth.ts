@@ -1,8 +1,16 @@
 import { User } from '@/lib/models';
+import {
+  ExtendedAppRole,
+  isAdminRole,
+  isMainMerchantRole,
+  isMarketerRole,
+  isSubmerchantRole,
+  normalizeRole,
+} from '@/lib/roles';
 import { verifyToken } from '@/server/utils/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
-export type AppRole = 'owner' | 'super_admin' | 'merchant' | 'marketer';
+export type AppRole = ExtendedAppRole;
 
 export async function getAuthUser(request: NextRequest) {
   const header = request.headers.get('authorization') || '';
@@ -42,7 +50,10 @@ export async function requireRole(request: NextRequest, roles: AppRole[]) {
     return auth;
   }
 
-  if (!roles.includes(auth.user.role)) {
+  const actorRole = normalizeRole(auth.user.role) as AppRole;
+  const acceptedRoles = new Set(roles.map((role) => normalizeRole(role) as AppRole));
+
+  if (!acceptedRoles.has(actorRole)) {
     return {
       ok: false as const,
       response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
@@ -52,15 +63,37 @@ export async function requireRole(request: NextRequest, roles: AppRole[]) {
   return auth;
 }
 
-export function canManageMerchantResource(
+export async function canManageMerchantResource(
   actor: { role: AppRole; _id: { toString(): string } },
   merchantId: string
 ) {
-  if (actor.role === 'owner' || actor.role === 'super_admin') {
+  if (isAdminRole(actor.role)) {
     return true;
   }
 
-  return actor.role === 'merchant' && actor._id.toString() === merchantId;
+  if (isSubmerchantRole(actor.role)) {
+    return actor._id.toString() === merchantId;
+  }
+
+  if (isMainMerchantRole(actor.role)) {
+    const merchant = await User.findById(merchantId).select('role mainMerchantId');
+    if (!merchant || !isSubmerchantRole(merchant.role)) {
+      return false;
+    }
+    return merchant.mainMerchantId?.toString?.() === actor._id.toString();
+  }
+
+  return false;
+}
+
+export async function getManagedSubmerchantIds(mainMerchantId: string) {
+  const submerchants = await User.find({
+    role: { $in: ['submerchant', 'merchant'] },
+    mainMerchantId,
+    active: true,
+  }).select('_id');
+
+  return submerchants.map((entry: any) => entry._id.toString());
 }
 
 export function sanitizeUser(user: any) {
@@ -68,9 +101,13 @@ export function sanitizeUser(user: any) {
     _id: user._id?.toString?.() || user._id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    role: normalizeRole(user.role),
     active: user.active,
     isProtected: Boolean(user.isProtected),
+    mainMerchantId: user.mainMerchantId?.toString?.() || null,
+    createdByUserId: user.createdByUserId?.toString?.() || null,
+    canSeeAllSubmerchants:
+      isAdminRole(user.role) || (isMarketerRole(user.role) && !user.mainMerchantId),
     merchantProfile: user.merchantProfile || null,
     marketerProfile: user.marketerProfile || null,
     createdAt: user.createdAt,

@@ -2,18 +2,20 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCart } from '@/hooks/useCart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function CartPage() {
   const router = useRouter();
   const { admin, token, isLoading } = useAdminAuth();
   const { cart, removeItem, updateQuantity, updateSalePrice } = useCart();
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (isLoading) return;
@@ -21,10 +23,16 @@ export default function CartPage() {
       router.push('/admin/login');
       return;
     }
-    if (admin?.role === 'merchant') {
+    if (isSubmerchantRole(normalizeRole(admin?.role))) {
       router.push('/admin/dashboard');
     }
   }, [admin?.role, isLoading, router, token]);
+
+  const invalidPricingItems = useMemo(
+    () => cart.filter((item) => Number(item.salePriceByMarketer || 0) < Number(item.merchantPrice || 0)),
+    [cart]
+  );
+  const canProceedToCheckout = cart.length > 0 && invalidPricingItems.length === 0;
 
   if (isLoading || !token || !admin) return null;
 
@@ -50,11 +58,31 @@ export default function CartPage() {
             <Link href="/merchant-directory">
               <Button variant="outline">Continue shopping</Button>
             </Link>
-            <Link href="/checkout">
-              <Button disabled={cart.length === 0}>Proceed to checkout</Button>
-            </Link>
+            <Button
+              disabled={cart.length === 0}
+              onClick={() => {
+                if (!canProceedToCheckout) {
+                  const names = invalidPricingItems
+                    .slice(0, 3)
+                    .map((item) => item.productName)
+                    .join(', ');
+                  setError(
+                    `Cannot proceed: marketer price is below merchant price for ${names}${
+                      invalidPricingItems.length > 3 ? ' and more items' : ''
+                    }.`
+                  );
+                  return;
+                }
+                setError('');
+                router.push('/checkout');
+              }}
+            >
+              Proceed to checkout
+            </Button>
           </div>
         </div>
+
+        {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
         {cart.length === 0 ? (
           <Card className="rounded-3xl border-stone-200 p-10 text-center">
@@ -139,3 +167,5 @@ export default function CartPage() {
     </div>
   );
 }
+
+

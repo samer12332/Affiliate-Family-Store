@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { AppChrome } from '@/components/shared/AppChrome'
+import { Toaster as SonnerToaster } from '@/components/ui/sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans antialiased flex flex-col min-h-screen">
         <AppChrome>{children}</AppChrome>
+        <SonnerToaster />
         <Analytics />
       </body>
     </html>

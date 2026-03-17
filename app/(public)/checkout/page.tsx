@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
+import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function CheckoutPage() {
       router.push('/admin/login');
       return;
     }
-    if (admin?.role === 'merchant') {
+    if (isSubmerchantRole(normalizeRole(admin?.role))) {
       router.push('/admin/dashboard');
     }
   }, [admin?.role, isLoading, router, token]);
@@ -77,6 +78,21 @@ export default function CheckoutPage() {
 
       if (!customer.name || !customer.phone || !customer.addressLine) {
         setError('Customer name, phone, and address are required.');
+        return;
+      }
+      const invalidPricingItems = cart.filter(
+        (item) => Number(item.salePriceByMarketer || 0) < Number(item.merchantPrice || 0)
+      );
+      if (invalidPricingItems.length > 0) {
+        const names = invalidPricingItems
+          .slice(0, 3)
+          .map((item) => item.productName)
+          .join(', ');
+        setError(
+          `Cannot proceed: marketer price is below merchant price for ${names}${
+            invalidPricingItems.length > 3 ? ' and more items' : ''
+          }.`
+        );
         return;
       }
 
@@ -205,3 +221,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
+

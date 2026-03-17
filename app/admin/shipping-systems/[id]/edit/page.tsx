@@ -9,6 +9,7 @@ import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
+import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function EditShippingSystemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -45,6 +46,7 @@ export default function EditShippingSystemPage({ params }: { params: Promise<{ i
   }, [get, id, isLoading, router, token]);
 
   if (isLoading || !token || !admin) return null;
+  const role = normalizeRole(admin.role);
 
   const save = async () => {
     try {
@@ -95,7 +97,7 @@ export default function EditShippingSystemPage({ params }: { params: Promise<{ i
           </Link>
         </div>
 
-        {admin.role === 'merchant' && <MerchantNav merchantId={admin.id || admin._id} />}
+        {isSubmerchantRole(role) && <MerchantNav />}
 
         <Card className="rounded-3xl p-6">
           <div className="space-y-4">
@@ -150,3 +152,4 @@ export default function EditShippingSystemPage({ params }: { params: Promise<{ i
     </div>
   );
 }
+

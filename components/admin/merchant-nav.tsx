@@ -5,24 +5,18 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-interface MerchantNavProps {
-  merchantId?: string | null;
-}
-
-const baseLinks = [
+const links = [
   { href: '/admin/dashboard', label: 'Dashboard', match: 'exact' as const },
   { href: '/admin/products', label: 'Products', match: 'startsWith' as const },
+  { href: '/admin/stocks', label: 'Stock', match: 'startsWith' as const },
   { href: '/admin/orders', label: 'Orders', match: 'startsWith' as const },
+  { href: '/admin/commissions', label: 'Commissions', match: 'startsWith' as const },
+  { href: '/admin/notifications', label: 'Notifications', match: 'startsWith' as const },
   { href: '/admin/shipping-systems', label: 'Shipping', match: 'startsWith' as const },
 ];
 
-export function MerchantNav({ merchantId }: MerchantNavProps) {
+export function MerchantNav() {
   const pathname = usePathname();
-
-  const links = [
-    ...baseLinks,
-    ...(merchantId ? [{ href: `/merchant/${merchantId}`, label: 'Merchant page', match: 'exact' as const }] : []),
-  ];
 
   const isActive = (href: string, match: 'exact' | 'startsWith') =>
     match === 'exact' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);

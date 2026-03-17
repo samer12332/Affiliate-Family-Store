@@ -1,6 +1,7 @@
 import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem } from '@/lib/models';
+import { isMainMerchantRole } from '@/lib/roles';
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
@@ -42,9 +43,12 @@ export async function PUT(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant']);
     if (!auth.ok) {
       return auth.response;
+    }
+    if (isMainMerchantRole(auth.user.role)) {
+      return NextResponse.json({ error: 'Main merchants cannot edit products. Only submerchants can edit products.' }, { status: 403 });
     }
 
     const { slug } = await params;
@@ -54,7 +58,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    if (!canManageMerchantResource(auth.user, product.merchantId.toString())) {
+    if (!(await canManageMerchantResource(auth.user, product.merchantId.toString()))) {
       return NextResponse.json({ error: 'You cannot edit this product' }, { status: 403 });
     }
 
@@ -66,6 +70,13 @@ export async function PUT(
       const merchantPrice = Number(body.merchantPrice ?? body.price);
       update.merchantPrice = merchantPrice;
       update.price = merchantPrice;
+    }
+    if (body.stock !== undefined) {
+      const stock = Number(body.stock);
+      if (!Number.isInteger(stock) || stock < 0) {
+        return NextResponse.json({ error: 'Valid stock quantity is required' }, { status: 400 });
+      }
+      update.stock = stock;
     }
     if (body.suggestedCommission !== undefined) {
       update.suggestedCommission =
@@ -101,7 +112,12 @@ export async function PUT(
         : sizeWeightChart.map((entry: any) => entry.size);
     }
     if (body.shippingSystemId !== undefined) {
-      const shippingSystem = await ShippingSystem.findById(body.shippingSystemId);
+      const shippingSystemId = String(body.shippingSystemId || '').trim();
+      if (!shippingSystemId || !mongoose.Types.ObjectId.isValid(shippingSystemId)) {
+        return NextResponse.json({ error: 'A valid shipping system is required' }, { status: 400 });
+      }
+
+      const shippingSystem = await ShippingSystem.findById(shippingSystemId);
       if (!shippingSystem) {
         return NextResponse.json({ error: 'Invalid shipping system' }, { status: 400 });
       }
@@ -109,7 +125,7 @@ export async function PUT(
       if (shippingSystem.merchantId.toString() !== product.merchantId.toString()) {
         return NextResponse.json({ error: 'Shipping system does not belong to this merchant' }, { status: 400 });
       }
-      update.shippingSystemId = body.shippingSystemId;
+      update.shippingSystemId = shippingSystemId;
     }
 
     const updated = await Product.findByIdAndUpdate(product._id, update, { new: true });
@@ -129,9 +145,12 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant']);
     if (!auth.ok) {
       return auth.response;
+    }
+    if (isMainMerchantRole(auth.user.role)) {
+      return NextResponse.json({ error: 'Main merchants cannot delete products. Only submerchants can delete products.' }, { status: 403 });
     }
 
     const { slug } = await params;
@@ -140,7 +159,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    if (!canManageMerchantResource(auth.user, product.merchantId.toString())) {
+    if (!(await canManageMerchantResource(auth.user, product.merchantId.toString()))) {
       return NextResponse.json({ error: 'You cannot delete this product' }, { status: 403 });
     }
 

@@ -8,6 +8,7 @@ import { useApi } from '@/hooks/useApi';
 import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { isAdminRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -28,8 +29,9 @@ export default function ProductsPage() {
   }, [get, isLoading, router, token]);
 
   if (isLoading || !token || !admin) return null;
+  const role = normalizeRole(admin.role);
 
-  if (!['owner', 'merchant'].includes(admin.role)) {
+  if (!isAdminRole(role) && !isSubmerchantRole(role)) {
     router.push('/admin/dashboard');
     return null;
   }
@@ -39,17 +41,25 @@ export default function ProductsPage() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Merchant products</h1>
+            <h1 className="text-3xl font-bold text-foreground">Submerchant products</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Products are now merchant-owned and only appear on that merchant&apos;s page.
             </p>
           </div>
-          <Link href="/admin/products/new">
-            <Button>Create new product</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/admin/dashboard">
+              <Button variant="outline">Back to dashboard</Button>
+            </Link>
+            <Link href="/admin/stocks">
+              <Button variant="outline">Manage stock</Button>
+            </Link>
+            <Link href="/admin/products/new">
+              <Button>Create new product</Button>
+            </Link>
+          </div>
         </div>
 
-        {admin.role === 'merchant' && <MerchantNav merchantId={admin.id || admin._id} />}
+        {isSubmerchantRole(role) && <MerchantNav />}
 
         <div className="grid gap-4">
           {products.map((product) => (
@@ -59,6 +69,9 @@ export default function ProductsPage() {
                   <h2 className="text-lg font-semibold text-foreground">{product.name}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Merchant price: {Number(product.merchantPrice || product.price || 0).toFixed(2)} EGP
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Stock: {Number(product.stock || 0)}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -83,3 +96,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+

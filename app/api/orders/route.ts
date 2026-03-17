@@ -1,7 +1,9 @@
-import { requireRole } from '@/lib/auth';
+import { getManagedSubmerchantIds, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { OWNER_COMMISSION_RATE } from '@/lib/constants';
-import { Commission, Order, Product, ShippingSystem } from '@/lib/models';
+import { Commission, Order, Product, ShippingSystem, User } from '@/lib/models';
+import { createNotificationsForUsers } from '@/lib/notifications';
+import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { NextRequest, NextResponse } from 'next/server';
 
 async function generateOrderNumber(): Promise<string> {
@@ -21,11 +23,61 @@ function normalizeGovernorate(value: string) {
   return String(value || '').trim().toLowerCase();
 }
 
+type StockAdjustment = {
+  productId: string;
+  quantity: number;
+};
+
+async function reserveProductStock(adjustments: StockAdjustment[]) {
+  const applied: StockAdjustment[] = [];
+
+  try {
+    for (const adjustment of adjustments) {
+      const updated = await Product.findOneAndUpdate(
+        {
+          _id: adjustment.productId,
+          stock: { $gte: adjustment.quantity },
+        },
+        {
+          $inc: { stock: -adjustment.quantity },
+        },
+        { new: true }
+      ).select('name stock');
+
+      if (!updated) {
+        throw new Error('One or more products are out of stock for the requested quantity');
+      }
+
+      applied.push(adjustment);
+    }
+  } catch (error) {
+    if (applied.length > 0) {
+      await Promise.all(
+        applied.map((adjustment) =>
+          Product.findByIdAndUpdate(adjustment.productId, { $inc: { stock: adjustment.quantity } })
+        )
+      );
+    }
+    throw error;
+  }
+}
+
+async function restoreProductStock(adjustments: StockAdjustment[]) {
+  if (adjustments.length === 0) return;
+  await Promise.all(
+    adjustments.map((adjustment) =>
+      Product.findByIdAndUpdate(adjustment.productId, { $inc: { stock: adjustment.quantity } })
+    )
+  );
+}
+
 async function buildOrderDetails(orderProducts: any[], governorate: string, merchantId: string) {
   const items = [];
   let subtotal = 0;
   let shippingFee = 0;
   let merchantSubtotal = 0;
+  let sharedShippingSystemId = '';
+  const stockByProduct = new Map<string, number>();
 
   for (const entry of orderProducts) {
     const product = await Product.findById(entry.productId);
@@ -50,20 +102,40 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
       throw new Error(`No shipping fee configured for governorate "${governorate}"`);
     }
 
-    const quantity = Math.max(1, Number(entry.quantity || 1));
+    const quantity = Number(entry.quantity || 1);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new Error(`Invalid quantity for "${product.name}"`);
+    }
+
+    const currentStock = Number(product.stock ?? 0);
+    if (quantity > currentStock) {
+      throw new Error(`Insufficient stock for "${product.name}". Available: ${currentStock}`);
+    }
+
     const salePriceByMarketer = Number(entry.salePriceByMarketer);
     if (!Number.isFinite(salePriceByMarketer) || salePriceByMarketer < 0) {
       throw new Error(`Invalid selling price for "${product.name}"`);
     }
 
     const merchantPrice = Number(product.merchantPrice ?? product.price ?? 0);
+    if (salePriceByMarketer < merchantPrice) {
+      throw new Error(`Selling price for "${product.name}" cannot be below merchant price`);
+    }
     const lineSubtotal = salePriceByMarketer * quantity;
     const merchantLineSubtotal = merchantPrice * quantity;
     const marketerProfit = Math.max(salePriceByMarketer - merchantPrice, 0) * quantity;
 
     subtotal += lineSubtotal;
     merchantSubtotal += merchantLineSubtotal;
-    shippingFee += Number(matchedFee.fee) * quantity;
+
+    const currentShippingSystemId = String(product.shippingSystemId || '');
+    if (!sharedShippingSystemId) {
+      sharedShippingSystemId = currentShippingSystemId;
+      // Cart policy enforces one shipping system for the grouped order.
+      shippingFee = Number(matchedFee.fee);
+    } else if (sharedShippingSystemId !== currentShippingSystemId) {
+      throw new Error('All items in one order must use the same shipping system');
+    }
 
     items.push({
       productId: product._id,
@@ -78,6 +150,9 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
       lineSubtotal,
       marketerProfit,
     });
+
+    const productId = product._id.toString();
+    stockByProduct.set(productId, (stockByProduct.get(productId) || 0) + quantity);
   }
 
   return {
@@ -88,13 +163,17 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
     total: subtotal + shippingFee,
     marketerAmount: items.reduce((sum, item) => sum + item.marketerProfit, 0),
     ownerAmount: merchantSubtotal * OWNER_COMMISSION_RATE,
+    stockAdjustments: Array.from(stockByProduct.entries()).map(([productId, quantity]) => ({
+      productId,
+      quantity,
+    })),
   };
 }
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'super_admin', 'merchant', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -106,15 +185,21 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const query: any = {};
+    const actorRole = normalizeRole(auth.user.role);
     if (status) {
       query.status = status;
     }
 
-    if (auth.user.role === 'merchant') {
+    if (isSubmerchantRole(actorRole)) {
       query.merchantId = auth.user._id;
     }
 
-    if (auth.user.role === 'marketer') {
+    if (isMainMerchantRole(actorRole)) {
+      const managedIds = await getManagedSubmerchantIds(auth.user._id.toString());
+      query.merchantId = { $in: managedIds };
+    }
+
+    if (isMarketerRole(actorRole)) {
       query.marketerId = auth.user._id;
     }
 
@@ -132,14 +217,17 @@ export async function GET(request: NextRequest) {
       orders: orders.map((order: any) => {
         const commission = commissionMap.get(order._id.toString());
         const canSeeDues =
-          order.status === 'delivered' || auth.user.role === 'merchant' || auth.user.role === 'owner' || auth.user.role === 'super_admin';
+          order.status === 'delivered' || isSubmerchantRole(actorRole) || isMainMerchantRole(actorRole) || isAdminRole(actorRole);
 
         return {
           ...order.toObject(),
           marketerDuesVisible: canSeeDues,
           marketerAmount: canSeeDues ? Number(commission?.marketerAmount || 0) : 0,
-          ownerAmount: auth.user.role === 'owner' || auth.user.role === 'super_admin' || auth.user.role === 'merchant'
+          ownerAmount: isAdminRole(actorRole) || isSubmerchantRole(actorRole) || isMainMerchantRole(actorRole)
             ? Number(commission?.ownerAmount || 0)
+            : undefined,
+          mainMerchantAmount: isAdminRole(actorRole) || isSubmerchantRole(actorRole) || isMainMerchantRole(actorRole)
+            ? Number(commission?.mainMerchantAmount || 0)
             : undefined,
         };
       }),
@@ -162,7 +250,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'super_admin', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'marketer']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -177,25 +265,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required order fields' }, { status: 400 });
     }
 
+    const merchant = await User.findById(merchantId).select('role mainMerchantId active');
+    if (!merchant || !merchant.active || !isSubmerchantRole(merchant.role)) {
+      return NextResponse.json({ error: 'Selected submerchant is invalid' }, { status: 400 });
+    }
+
+    const actorRole = normalizeRole(auth.user.role);
+    if (isMarketerRole(actorRole) && auth.user.mainMerchantId) {
+      if (merchant.mainMerchantId?.toString?.() !== auth.user.mainMerchantId.toString()) {
+        return NextResponse.json({ error: 'You can only create orders for your main merchant submerchants' }, { status: 403 });
+      }
+    }
+
     const calculated = await buildOrderDetails(itemsPayload, governorate, merchantId);
-    const order = await Order.create({
-      orderNumber: await generateOrderNumber(),
-      merchantId,
-      marketerId: auth.user._id,
-      customer: {
-        name: String(customer.name).trim(),
-        phone: String(customer.phone).trim(),
-        email: String(customer.email || '').trim(),
-        addressLine: String(customer.addressLine).trim(),
-        notes: String(customer.notes || '').trim(),
+    await reserveProductStock(calculated.stockAdjustments);
+
+    let order: any;
+    try {
+      order = await Order.create({
+        orderNumber: await generateOrderNumber(),
+        merchantId,
+        marketerId: auth.user._id,
+        customer: {
+          name: String(customer.name).trim(),
+          phone: String(customer.phone).trim(),
+          email: String(customer.email || '').trim(),
+          addressLine: String(customer.addressLine).trim(),
+          notes: String(customer.notes || '').trim(),
+        },
+        governorate,
+        shippingFee: calculated.shippingFee,
+        subtotal: calculated.subtotal,
+        total: calculated.total,
+        status: 'pending',
+        items: calculated.items,
+        statusHistory: [{ status: 'pending', changedBy: auth.user._id }],
+      });
+    } catch (createError) {
+      await restoreProductStock(calculated.stockAdjustments);
+      throw createError;
+    }
+
+    await createNotificationsForUsers({
+      userIds: [merchantId],
+      type: 'new_order',
+      title: `New order ${order.orderNumber}`,
+      body: `A new order was submitted by marketer ${auth.user.name || ''}.`,
+      href: `/admin/orders/${order._id}`,
+      metadata: {
+        orderId: order._id?.toString?.(),
+        orderNumber: order.orderNumber,
+        source: 'order_created',
       },
-      governorate,
-      shippingFee: calculated.shippingFee,
-      subtotal: calculated.subtotal,
-      total: calculated.total,
-      status: 'pending',
-      items: calculated.items,
-      statusHistory: [{ status: 'pending', changedBy: auth.user._id }],
     });
 
     return NextResponse.json(

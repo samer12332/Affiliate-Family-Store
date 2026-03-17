@@ -5,14 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { ShoppingCart, Menu, X, Search } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { cn } from "@/lib/utils";
 import { SiteLogo } from "@/components/shared/SiteLogo";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { getTotalItems } = useCart();
+  const { admin, token, isLoading, logout } = useAdminAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const isMarketerLoggedIn = !isLoading && !!token && admin?.role === "marketer";
 
   const navLinks = [
     { href: "/shop", label: "Shop" },
@@ -53,6 +56,18 @@ export function Header() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
+            {isMarketerLoggedIn && (
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  router.push("/admin/login");
+                }}
+                className="hidden sm:inline-flex rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
+              >
+                Logout
+              </button>
+            )}
             <button
               type="button"
               onClick={() => router.push("/shop?focusSearch=1")}

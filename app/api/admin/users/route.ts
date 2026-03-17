@@ -2,6 +2,7 @@ import { requireRole, sanitizeUser } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD } from '@/lib/constants';
 import { User } from '@/lib/models';
+import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -35,29 +36,52 @@ export async function GET(request: NextRequest) {
     await connectDB();
     await ensureOwner();
 
-    const auth = await requireRole(request, ['owner', 'super_admin', 'merchant', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
     if (!auth.ok) {
       return auth.response;
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const role = searchParams.get('role');
+    const role = normalizeRole(searchParams.get('role'));
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const skip = (page - 1) * limit;
+    const actorRole = normalizeRole(auth.user.role);
 
     const query: any = {};
     if (role) {
-      query.role = role;
+      query.role = role === 'submerchant' ? { $in: ['submerchant', 'merchant'] } : role;
     }
 
-    if (auth.user.role === 'merchant') {
-      query.role = 'marketer';
+    if (isMainMerchantRole(actorRole)) {
+      query.$or = [{ _id: auth.user._id }, { mainMerchantId: auth.user._id }];
     }
 
-    if (auth.user.role === 'marketer') {
-      query.role = 'merchant';
+    if (isSubmerchantRole(actorRole)) {
+      query._id = auth.user._id;
+    }
+
+    let legacyMainMerchantIds: string[] = [];
+
+    if (isMarketerRole(actorRole)) {
+      query.role = { $in: ['submerchant', 'merchant'] };
       query.active = true;
+      if (auth.user.mainMerchantId) {
+        query.mainMerchantId = auth.user.mainMerchantId;
+      }
+
+      // Exclude any legacy "merchant" accounts that are actually acting as main merchants.
+      legacyMainMerchantIds = (await User.distinct('mainMerchantId', { mainMerchantId: { $ne: null } }))
+        .filter(Boolean)
+        .map((id: any) => id?.toString?.() || String(id));
+
+      if (legacyMainMerchantIds.length > 0) {
+        query._id = { $nin: legacyMainMerchantIds };
+      }
+    }
+
+    if (isAdminRole(actorRole)) {
+      delete query.$or;
     }
 
     const [users, total] = await Promise.all([
@@ -65,8 +89,13 @@ export async function GET(request: NextRequest) {
       User.countDocuments(query),
     ]);
 
+    const filteredUsers =
+      isMarketerRole(actorRole) && legacyMainMerchantIds.length > 0
+        ? users.filter((entry: any) => !legacyMainMerchantIds.includes(entry._id?.toString?.() || String(entry._id)))
+        : users;
+
     return NextResponse.json({
-      users: users.map(sanitizeUser),
+      users: filteredUsers.map(sanitizeUser),
       total,
       pagination: {
         page,
@@ -86,7 +115,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'super_admin']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -95,10 +124,17 @@ export async function POST(request: NextRequest) {
     const name = String(body?.name || '').trim();
     const email = String(body?.email || '').toLowerCase().trim();
     const password = String(body?.password || '');
-    const role = String(body?.role || '');
+    const role = normalizeRole(String(body?.role || ''));
     const active = body?.active !== false;
+    const actorRole = normalizeRole(auth.user.role);
 
-    if (!name || !email || !password || !['merchant', 'marketer', 'super_admin'].includes(role)) {
+    const allowedRoles = isMainMerchantRole(actorRole)
+      ? ['submerchant', 'marketer']
+      : actorRole === 'owner'
+        ? ['admin', 'super_admin', 'main_merchant', 'submerchant', 'marketer']
+        : ['main_merchant', 'submerchant', 'marketer'];
+
+    if (!name || !email || !password || !allowedRoles.includes(role)) {
       return NextResponse.json({ error: 'Invalid user payload' }, { status: 400 });
     }
 
@@ -115,14 +151,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User with this email already exists' }, { status: 409 });
     }
 
+    let mainMerchantId: string | null = null;
+    if (isMainMerchantRole(actorRole)) {
+      mainMerchantId = auth.user._id.toString();
+    } else if (role === 'submerchant' || role === 'marketer') {
+      const requestedMainMerchantId = String(body?.mainMerchantId || '').trim();
+      if (requestedMainMerchantId) {
+        const mainMerchant = await User.findById(requestedMainMerchantId);
+        if (!mainMerchant || !isMainMerchantRole(mainMerchant.role)) {
+          return NextResponse.json({ error: 'Selected main merchant is invalid' }, { status: 400 });
+        }
+        mainMerchantId = mainMerchant._id.toString();
+      }
+    }
+
     const user = await User.create({
       name,
       email,
       password: await bcryptjs.hash(password, 10),
       role,
       active,
+      mainMerchantId: role === 'submerchant' || role === 'marketer' ? mainMerchantId : null,
+      createdByUserId: auth.user._id,
       merchantProfile:
-        role === 'merchant'
+        role === 'submerchant'
           ? {
               storeName: String(body?.storeName || name).trim(),
               slug: String(body?.storeSlug || name)

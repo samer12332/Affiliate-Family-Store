@@ -8,9 +8,10 @@ interface AuthUser {
   _id?: string;
   name: string;
   email: string;
-  role: "owner" | "super_admin" | "merchant" | "marketer";
+  role: "owner" | "admin" | "super_admin" | "main_merchant" | "submerchant" | "merchant" | "marketer";
   active?: boolean;
   isProtected?: boolean;
+  mainMerchantId?: string | null;
   merchantProfile?: {
     storeName?: string;
     slug?: string;
@@ -20,6 +21,7 @@ interface AuthUser {
 const TOKEN_STORAGE_KEY = "admin-token";
 const USER_STORAGE_KEY = "admin-user";
 const TOKEN_COOKIE_KEY = "admin-token";
+const AUTH_UPDATED_EVENT = "family-store-auth-updated";
 
 const writeTokenCookie = (token: string) => {
   document.cookie = `${TOKEN_COOKIE_KEY}=${encodeURIComponent(token)}; Path=/; SameSite=Lax; Max-Age=86400`;
@@ -88,6 +90,7 @@ export const useAdminAuth = () => {
       localStorage.setItem(TOKEN_STORAGE_KEY, authToken);
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(adminData));
       writeTokenCookie(authToken);
+      window.dispatchEvent(new Event(AUTH_UPDATED_EVENT));
 
       return { success: true, admin: adminData };
     } catch (err) {
@@ -105,6 +108,7 @@ export const useAdminAuth = () => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(USER_STORAGE_KEY);
     clearTokenCookie();
+    window.dispatchEvent(new Event(AUTH_UPDATED_EVENT));
   };
 
   const getAuthHeader = () => {

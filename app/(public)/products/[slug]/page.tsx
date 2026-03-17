@@ -13,10 +13,12 @@ import { resolveColorHex } from "@/lib/color-swatches";
 interface Product {
   _id: string;
   merchantId?: string;
+  shippingSystemId?: string;
   name: string;
   slug: string;
   description: string;
   price: number;
+  stock?: number;
   discountPrice?: number;
   images: string[];
   colors: Array<{ name: string; hex: string } | string>;
@@ -79,6 +81,16 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   };
 
   const handleAddToCart = () => {
+    const availableStock = Math.max(0, Number(product?.stock || 0));
+    if (availableStock < 1) {
+      toast.error("This product is out of stock");
+      return;
+    }
+    if (quantity > availableStock) {
+      toast.error(`Only ${availableStock} item(s) available in stock`);
+      return;
+    }
+
     const hasColorOptions = normalizedColors.length > 0;
     const resolvedSizes =
       Array.isArray(product?.sizes) && product.sizes.length > 0
@@ -102,11 +114,14 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       return;
     }
 
+    const baseMerchantPrice = Number(product!.price || 0);
     const displayPrice = product!.discountPrice || product!.price;
+    const initialSalePrice = Math.max(displayPrice, baseMerchantPrice);
 
-    addItem({
+    const result = addItem({
       productId: product!._id,
       merchantId: String(product!.merchantId || ""),
+      shippingSystemId: String((product as any).shippingSystemId || ""),
       merchantName: product!.brand || "Merchant",
       productName: product!.name,
       productSlug: product!.slug,
@@ -114,11 +129,17 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       selectedColor: hasColorOptions ? selectedColor : "Default",
       selectedSize: hasSizeOptions ? (sizeRangeLabelBySize[selectedSize] || selectedSize) : "Default",
       quantity,
-      price: displayPrice,
-      merchantPrice: Number(product!.price || 0),
-      salePriceByMarketer: displayPrice,
+      price: initialSalePrice,
+      merchantPrice: baseMerchantPrice,
+      salePriceByMarketer: initialSalePrice,
       shippingFee: 0, // Will be calculated at checkout
+      availableStock,
     });
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
 
     toast.success(`${quantity} item(s) added to cart`);
   };
@@ -140,6 +161,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   }
 
   const displayPrice = product.discountPrice || product.price;
+  const availableStock = Math.max(0, Number(product.stock || 0));
   const normalizedColors = Array.isArray(product.colors)
     ? product.colors.map((color) =>
         typeof color === "string" ? { name: color, hex: resolveColorHex(color) } : color
@@ -294,7 +316,8 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               </div>
             )}
             {(!Array.isArray(product.sizeWeightChart) || product.sizeWeightChart.length === 0) &&
-              resolvedSizes.length > 0 && (
+              resolvedSizes.length > 0 &&
+              product.category !== "Shoes" && (
                 <p className="text-sm text-muted-foreground">
                   Size weight details are not configured for this product yet.
                 </p>
@@ -337,18 +360,20 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                 </button>
                 <span className="px-4 py-2 text-center w-12">{quantity}</span>
                 <button
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={() => setQuantity(Math.min(Math.max(1, availableStock), quantity + 1))}
                   className="px-3 py-2 hover:bg-muted"
                 >
                   +
                 </button>
               </div>
+              <span className="text-xs text-muted-foreground">In stock: {availableStock}</span>
             </div>
 
             {/* Add to Cart & Favorite */}
             <div className="flex gap-3">
               <Button
                 onClick={handleAddToCart}
+                disabled={availableStock < 1}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center gap-2"
                 size="lg"
               >

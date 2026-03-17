@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -11,6 +11,8 @@ import { useCart } from '@/hooks/useCart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { toast } from 'sonner';
 
 export default function MerchantDirectoryPage() {
   const router = useRouter();
@@ -20,6 +22,7 @@ export default function MerchantDirectoryPage() {
   const [merchants, setMerchants] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [merchantFilter, setMerchantFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -29,13 +32,13 @@ export default function MerchantDirectoryPage() {
       return;
     }
 
-    if (admin?.role === 'merchant') {
+    if (isSubmerchantRole(normalizeRole(admin?.role))) {
       router.push('/admin/dashboard');
       return;
     }
 
     Promise.all([
-      get('/admin/users?role=merchant&limit=200'),
+      get('/admin/users?role=submerchant&limit=200'),
       get('/products?limit=200'),
     ])
       .then(([usersRes, productsRes]) => {
@@ -45,15 +48,60 @@ export default function MerchantDirectoryPage() {
       .catch((error) => console.error('[v0] Failed to load marketer marketplace', error));
   }, [admin?.role, get, isLoading, router, token]);
 
+  const dedupedMerchants = useMemo(() => {
+    const seenIds = new Set<string>();
+    const result: any[] = [];
+
+    for (const merchant of merchants) {
+      const id = String(merchant?._id || '');
+      if (!id || seenIds.has(id)) {
+        continue;
+      }
+
+      seenIds.add(id);
+      result.push(merchant);
+    }
+
+    return result;
+  }, [merchants]);
+
   const merchantNameMap = useMemo(
-    () => new Map(merchants.map((merchant) => [merchant._id, merchant.merchantProfile?.storeName || merchant.name])),
-    [merchants]
+    () => new Map(dedupedMerchants.map((merchant) => [merchant._id, merchant.merchantProfile?.storeName || merchant.name])),
+    [dedupedMerchants]
   );
+
+  const merchantOptions = useMemo(() => {
+    const productMerchantIds = new Set(
+      products.map((entry) => String(entry?.merchantId || '')).filter(Boolean)
+    );
+
+    return dedupedMerchants.filter((entry) => productMerchantIds.has(String(entry._id)));
+  }, [dedupedMerchants, products]);
+
+  const merchantOptionLabel = useMemo(() => {
+    const baseLabelCounts = new Map<string, number>();
+    for (const merchant of merchantOptions) {
+      const base = String(merchant?.merchantProfile?.storeName || merchant?.name || 'Submerchant').trim();
+      baseLabelCounts.set(base, (baseLabelCounts.get(base) || 0) + 1);
+    }
+
+    const labelMap = new Map<string, string>();
+    for (const merchant of merchantOptions) {
+      const id = String(merchant?._id || '');
+      const base = String(merchant?.merchantProfile?.storeName || merchant?.name || 'Submerchant').trim();
+      const email = String(merchant?.email || '').trim();
+      const needsDisambiguation = (baseLabelCounts.get(base) || 0) > 1;
+      labelMap.set(id, needsDisambiguation && email ? `${base} (${email})` : base);
+    }
+
+    return labelMap;
+  }, [merchantOptions]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return products.filter((product) => {
       const matchesMerchant = merchantFilter === 'all' || product.merchantId === merchantFilter;
+      const matchesCategory = categoryFilter === 'all' || String(product.category || '').toLowerCase() === categoryFilter;
       const merchantName = String(merchantNameMap.get(product.merchantId) || '').toLowerCase();
       const matchesSearch =
         normalizedSearch.length === 0 ||
@@ -61,9 +109,9 @@ export default function MerchantDirectoryPage() {
         String(product.category || '').toLowerCase().includes(normalizedSearch) ||
         merchantName.includes(normalizedSearch);
 
-      return matchesMerchant && matchesSearch;
+      return matchesMerchant && matchesCategory && matchesSearch;
     });
-  }, [merchantFilter, merchantNameMap, products, search]);
+  }, [categoryFilter, merchantFilter, merchantNameMap, products, search]);
 
   if (isLoading || !token || !admin) return null;
 
@@ -74,7 +122,7 @@ export default function MerchantDirectoryPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Marketer marketplace</p>
-              <h1 className="mt-2 text-3xl font-bold text-stone-900">Browse all merchant products</h1>
+              <h1 className="mt-2 text-3xl font-bold text-stone-900">Browse all submerchant products</h1>
               <p className="mt-2 max-w-3xl text-sm text-stone-600">
                 Filter by merchant, build your cart, and confirm orders. Checkout will split the cart into separate merchant orders automatically.
               </p>
@@ -97,21 +145,30 @@ export default function MerchantDirectoryPage() {
         </div>
 
         <Card className="mb-6 rounded-3xl border-stone-200 p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_260px]">
+          <div className="grid gap-3 md:grid-cols-[1fr_220px_220px]">
             <Input
               placeholder="Search by product, category, or merchant"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
             <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="all">All categories</option>
+              <option value="clothes">Clothes</option>
+              <option value="shoes">Shoes</option>
+            </select>
+            <select
               value={merchantFilter}
               onChange={(event) => setMerchantFilter(event.target.value)}
               className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="all">All merchants</option>
-              {merchants.map((merchant) => (
+              <option value="all">All submerchants</option>
+              {merchantOptions.map((merchant) => (
                 <option key={merchant._id} value={merchant._id}>
-                  {merchant.merchantProfile?.storeName || merchant.name}
+                  {merchantOptionLabel.get(String(merchant._id)) || merchant.merchantProfile?.storeName || merchant.name}
                 </option>
               ))}
             </select>
@@ -160,10 +217,11 @@ export default function MerchantDirectoryPage() {
                     </Link>
                     <Button
                       className="flex-1"
-                      onClick={() =>
-                        addItem({
+                      onClick={() => {
+                        const result = addItem({
                           productId: product._id,
                           merchantId: product.merchantId,
+                          shippingSystemId: String(product.shippingSystemId || ''),
                           merchantName,
                           productName: product.name,
                           productSlug: product.slug,
@@ -175,8 +233,16 @@ export default function MerchantDirectoryPage() {
                           merchantPrice,
                           salePriceByMarketer: merchantPrice,
                           shippingFee: 0,
-                        })
-                      }
+                          availableStock: Number(product.stock ?? 0),
+                        });
+
+                        if (!result.ok) {
+                          toast.error(result.error);
+                          return;
+                        }
+
+                        toast.success('Product added to cart');
+                      }}
                     >
                       Add to cart
                     </Button>
@@ -190,3 +256,4 @@ export default function MerchantDirectoryPage() {
     </div>
   );
 }
+

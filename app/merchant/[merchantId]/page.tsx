@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
+import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function MerchantPage({ params }: { params: Promise<{ merchantId: string }> }) {
   const { merchantId } = use(params);
@@ -34,13 +35,13 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
       return;
     }
 
-    if (admin?.role === 'merchant') {
+    if (isSubmerchantRole(normalizeRole(admin?.role))) {
       router.push('/admin/dashboard');
       return;
     }
 
     Promise.all([
-      get('/admin/users?role=merchant&limit=100'),
+      get('/admin/users?role=submerchant&limit=100'),
       get(`/products?merchantId=${merchantId}&limit=100`),
       get(`/shipping-systems?merchantId=${merchantId}&limit=100`),
     ])
@@ -350,3 +351,5 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
     </div>
   );
 }
+
+

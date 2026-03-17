@@ -40,7 +40,7 @@ export default function AdminLogin() {
           <p className="text-xs uppercase tracking-[0.3em] text-stone-500">Affiliate Family Store</p>
           <h1 className="mt-3 text-3xl font-bold text-stone-900">Role-Based Control Center</h1>
           <p className="mt-2 text-sm text-stone-600">
-            Sign in as owner, super admin, merchant, or marketer.
+            Sign in as owner, admin, main merchant, submerchant, or marketer.
           </p>
         </div>
 

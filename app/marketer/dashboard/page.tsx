@@ -1,12 +1,14 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function MarketerDashboardPage() {
   const router = useRouter();
@@ -20,7 +22,7 @@ export default function MarketerDashboardPage() {
       router.push('/admin/login');
       return;
     }
-    if (admin?.role === 'merchant') {
+    if (isSubmerchantRole(normalizeRole(admin?.role))) {
       router.push('/admin/dashboard');
       return;
     }
@@ -44,6 +46,8 @@ export default function MarketerDashboardPage() {
           <div className="flex flex-wrap gap-3">
             <Link href="/merchant-directory"><Button variant="outline">Marketplace</Button></Link>
             <Link href="/cart"><Button variant="outline">Cart</Button></Link>
+            <Link href="/admin/commissions"><Button variant="outline">Commissions</Button></Link>
+            <Link href="/admin/notifications"><Button variant="outline">Notifications</Button></Link>
             <Link href="/admin/orders"><Button>My orders</Button></Link>
           </div>
         </div>
@@ -77,7 +81,10 @@ export default function MarketerDashboardPage() {
                 <div key={order._id} className="rounded-2xl bg-stone-50 px-4 py-3">
                   <div className="flex items-center justify-between gap-4">
                     <p className="font-semibold text-stone-900">{order.orderNumber}</p>
-                    <p className="capitalize text-stone-600">{order.status}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <OrderStatusPill status={order.status} />
+                      <OrderUpdatePill order={order} role="marketer" />
+                    </div>
                   </div>
                   <p className="mt-1 text-sm text-stone-500">{order.customer?.name}</p>
                 </div>

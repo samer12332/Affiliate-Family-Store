@@ -8,7 +8,14 @@ import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { AVAILABILITY_STATUS, GENDER_TYPES, PRODUCT_CATEGORIES } from '@/lib/constants';
+import {
+  AVAILABILITY_STATUS,
+  GENDER_TYPES,
+  MAIN_MERCHANT_COMMISSION_RATE,
+  OWNER_COMMISSION_RATE,
+  PRODUCT_CATEGORIES,
+} from '@/lib/constants';
+import { isAdminRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -18,10 +25,12 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const [shippingSystems, setShippingSystems] = useState<any[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
     merchantPrice: '',
+    stock: '',
     suggestedCommission: '',
     category: PRODUCT_CATEGORIES[0],
     gender: GENDER_TYPES[0],
@@ -50,6 +59,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           name: product.name || '',
           slug: product.slug || '',
           merchantPrice: String(product.merchantPrice || product.price || ''),
+          stock: String(Number(product.stock || 0)),
           suggestedCommission:
             product.suggestedCommission === null || product.suggestedCommission === undefined
               ? ''
@@ -72,8 +82,25 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   }, [get, id, isLoading, router, token]);
 
   if (isLoading || !token || !admin) return null;
+  const role = normalizeRole(admin.role);
+  if (!isAdminRole(role) && !isSubmerchantRole(role)) {
+    router.push('/admin/dashboard');
+    return null;
+  }
+  const hasMainMerchant = Boolean(admin.mainMerchantId);
+  const totalCommissionRate =
+    OWNER_COMMISSION_RATE + (hasMainMerchant ? MAIN_MERCHANT_COMMISSION_RATE : 0);
+  const isShoesCategory = formData.category === 'Shoes';
 
-  const parseSizeLines = (value: string) => {
+  const parseSizeInput = (value: string, isShoes: boolean) => {
+    if (isShoes) {
+      const sizes = value
+        .split(/[\n,]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      return { sizeWeightChart: [], sizes };
+    }
+
     const sizeWeightChart: Array<{ size: string; minWeightKg: number; maxWeightKg: number }> = [];
     const sizes: string[] = [];
 
@@ -82,7 +109,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       .map((line) => line.trim())
       .filter(Boolean)
       .forEach((line) => {
-        const weighted = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
+        const weighted = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*[-–—]\s*(\d+(?:\.\d+)?)/);
         if (weighted) {
           sizeWeightChart.push({
             size: weighted[1].toUpperCase(),
@@ -122,19 +149,28 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const { sizeWeightChart, sizes } = parseSizeLines(formData.sizeWeightChart);
-
-    await put(`/products/${id}`, {
-      ...formData,
-      merchantPrice: Number(formData.merchantPrice),
-      suggestedCommission:
-        formData.suggestedCommission === '' ? null : Number(formData.suggestedCommission),
-      colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
-      sizeWeightChart,
-      sizes,
-      images: images.map((entry) => entry.trim()).filter(Boolean),
-    });
-    router.push('/admin/products');
+    setError('');
+    if (!Number.isInteger(Number(formData.stock)) || Number(formData.stock) < 0) {
+      setError('Please provide a valid non-negative stock quantity.');
+      return;
+    }
+    const { sizeWeightChart, sizes } = parseSizeInput(formData.sizeWeightChart, isShoesCategory);
+    try {
+      await put(`/products/${id}`, {
+        ...formData,
+        merchantPrice: Number(formData.merchantPrice),
+        stock: Number(formData.stock),
+        suggestedCommission:
+          formData.suggestedCommission === '' ? null : Number(formData.suggestedCommission),
+        colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
+        sizeWeightChart,
+        sizes,
+        images: images.map((entry) => entry.trim()).filter(Boolean),
+      });
+      router.push('/admin/products');
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to update product');
+    }
   };
 
   return (
@@ -160,6 +196,17 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Merchant price</label>
               <Input type="number" min="0" step="0.01" placeholder="Merchant price" value={formData.merchantPrice} onChange={(e) => setFormData((prev) => ({ ...prev, merchantPrice: e.target.value }))} />
+              {isSubmerchantRole(role) && (
+                <p className="text-xs text-muted-foreground">
+                  This price includes commission deductions of {(totalCommissionRate * 100).toFixed(0)}%
+                  ({(OWNER_COMMISSION_RATE * 100).toFixed(0)}% system owner
+                  {hasMainMerchant ? ` + ${(MAIN_MERCHANT_COMMISSION_RATE * 100).toFixed(0)}% main merchant` : ''}).
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Stock quantity</label>
+              <Input type="number" min="0" step="1" placeholder="Stock quantity" value={formData.stock} onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Suggested commission (optional)</label>
@@ -186,8 +233,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <Input placeholder="Colors separated by commas" value={formData.colors} onChange={(e) => setFormData((prev) => ({ ...prev, colors: e.target.value }))} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Sizes by weight</label>
-              <textarea value={formData.sizeWeightChart} onChange={(e) => setFormData((prev) => ({ ...prev, sizeWeightChart: e.target.value }))} className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" />
+              <label className="text-sm font-medium text-foreground">{isShoesCategory ? 'Sizes' : 'Sizes by weight'}</label>
+              <textarea value={formData.sizeWeightChart} onChange={(e) => setFormData((prev) => ({ ...prev, sizeWeightChart: e.target.value }))} className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder={isShoesCategory ? '41, 42, 43, 44, 45' : 'M 50-65\nL 65-80'} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Shipping system</label>
@@ -225,7 +272,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <label className="text-sm font-medium text-foreground">Description</label>
               <textarea value={formData.description} onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} className="min-h-32 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" />
             </div>
-
+            {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full">Save changes</Button>
           </form>
         </Card>

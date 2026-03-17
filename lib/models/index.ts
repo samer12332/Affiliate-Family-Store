@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const USER_ROLES = ['owner', 'super_admin', 'merchant', 'marketer'] as const;
+const USER_ROLES = ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer'] as const;
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'] as const;
 const COMMISSION_STATUSES = ['pending', 'confirmed', 'delivered', 'paid'] as const;
 
@@ -10,6 +10,18 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     role: { type: String, enum: USER_ROLES, required: true },
+    mainMerchantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    createdByUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     isProtected: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
     merchantProfile: {
@@ -28,6 +40,7 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1, active: 1 });
+userSchema.index({ role: 1, mainMerchantId: 1, active: 1 });
 userSchema.index({ 'merchantProfile.slug': 1 });
 
 const categorySchema = new mongoose.Schema(
@@ -84,6 +97,7 @@ const productSchema = new mongoose.Schema(
     brand: String,
     description: { type: String, default: '' },
     merchantPrice: { type: Number, required: true, min: 0 },
+    stock: { type: Number, required: true, min: 0, default: 0 },
     suggestedCommission: { type: Number, min: 0, default: null },
     price: { type: Number, required: true, min: 0 },
     discountPrice: Number,
@@ -189,8 +203,30 @@ const commissionSchema = new mongoose.Schema(
       unique: true,
     },
     ownerAmount: { type: Number, required: true, min: 0, default: 0 },
+    mainMerchantAmount: { type: Number, required: true, min: 0, default: 0 },
     marketerAmount: { type: Number, required: true, min: 0, default: 0 },
     merchantNet: { type: Number, required: true, min: 0, default: 0 },
+    ownerSettlement: {
+      senderRole: { type: String, default: '' },
+      senderMarkedPaidBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      senderMarkedPaidAt: { type: Date, default: null },
+      receiverMarkedReceivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      receiverMarkedReceivedAt: { type: Date, default: null },
+    },
+    mainMerchantSettlement: {
+      senderRole: { type: String, default: '' },
+      senderMarkedPaidBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      senderMarkedPaidAt: { type: Date, default: null },
+      receiverMarkedReceivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      receiverMarkedReceivedAt: { type: Date, default: null },
+    },
+    marketerSettlement: {
+      senderRole: { type: String, default: '' },
+      senderMarkedPaidBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      senderMarkedPaidAt: { type: Date, default: null },
+      receiverMarkedReceivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      receiverMarkedReceivedAt: { type: Date, default: null },
+    },
     status: { type: String, enum: COMMISSION_STATUSES, default: 'pending' },
   },
   { timestamps: true }
@@ -211,6 +247,65 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const notificationSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    type: { type: String, required: true, default: 'info' },
+    title: { type: String, required: true },
+    body: { type: String, default: '' },
+    href: { type: String, default: '' },
+    read: { type: Boolean, default: false, index: true },
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true }
+);
+
+notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+
+const commissionComplaintSchema = new mongoose.Schema(
+  {
+    orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
+    channel: { type: String, enum: ['owner', 'main_merchant', 'marketer'], required: true },
+    complainantUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    complainantRole: { type: String, required: true },
+    reportedAgainstRole: { type: String, default: '' },
+    message: { type: String, required: true, trim: true },
+    status: { type: String, enum: ['open', 'in_review', 'resolved', 'rejected'], default: 'open', index: true },
+    reviewedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    reviewedAt: { type: Date, default: null },
+    resolutionNote: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
+commissionComplaintSchema.index({ status: 1, createdAt: -1 });
+
+const existingUserModel = mongoose.models.User as mongoose.Model<any> | undefined;
+if (existingUserModel) {
+  const existingRoleEnumValues =
+    ((existingUserModel.schema.path('role') as any)?.enumValues as string[] | undefined) || [];
+  if (!existingRoleEnumValues.includes('main_merchant')) {
+    mongoose.deleteModel('User');
+  }
+}
+
+const existingProductModel = mongoose.models.Product as mongoose.Model<any> | undefined;
+if (existingProductModel) {
+  const hasStockPath = Boolean(existingProductModel.schema.path('stock'));
+  if (!hasStockPath) {
+    mongoose.deleteModel('Product');
+  }
+}
+
+const existingCommissionModel = mongoose.models.Commission as mongoose.Model<any> | undefined;
+if (existingCommissionModel) {
+  const hasMainMerchantAmountPath = Boolean(existingCommissionModel.schema.path('mainMerchantAmount'));
+  const hasOwnerSettlementPath = Boolean(existingCommissionModel.schema.path('ownerSettlement'));
+  if (!hasMainMerchantAmountPath || !hasOwnerSettlementPath) {
+    mongoose.deleteModel('Commission');
+  }
+}
+
 export const User = mongoose.models.User || mongoose.model('User', userSchema);
 export const Category = mongoose.models.Category || mongoose.model('Category', categorySchema);
 export const ShippingSystem =
@@ -220,3 +315,7 @@ export const Order = mongoose.models.Order || mongoose.model('Order', orderSchem
 export const Commission =
   mongoose.models.Commission || mongoose.model('Commission', commissionSchema);
 export const Message = mongoose.models.Message || mongoose.model('Message', messageSchema);
+export const Notification =
+  mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+export const CommissionComplaint =
+  mongoose.models.CommissionComplaint || mongoose.model('CommissionComplaint', commissionComplaintSchema);

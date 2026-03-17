@@ -2,6 +2,7 @@ import { canManageMerchantResource, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { ShippingSystem } from '@/lib/models';
+import { isAdminRole } from '@/lib/roles';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -32,7 +33,7 @@ export async function PUT(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -43,8 +44,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });
     }
 
-    if (!canManageMerchantResource(auth.user, shippingSystem.merchantId.toString())) {
-      return NextResponse.json({ error: 'You cannot edit this shipping system' }, { status: 403 });
+    if (!isAdminRole(auth.user.role)) {
+      const merchantId = shippingSystem.merchantId?.toString?.();
+      if (!merchantId) {
+        return NextResponse.json({ error: 'Shipping system is missing merchant owner' }, { status: 400 });
+      }
+
+      if (!(await canManageMerchantResource(auth.user, merchantId))) {
+        return NextResponse.json({ error: 'You cannot edit this shipping system' }, { status: 403 });
+      }
     }
 
     const body = await request.json();
@@ -94,7 +102,7 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -105,8 +113,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });
     }
 
-    if (!canManageMerchantResource(auth.user, shippingSystem.merchantId.toString())) {
-      return NextResponse.json({ error: 'You cannot delete this shipping system' }, { status: 403 });
+    if (!isAdminRole(auth.user.role)) {
+      const merchantId = shippingSystem.merchantId?.toString?.();
+      if (!merchantId) {
+        return NextResponse.json({ error: 'Shipping system is missing merchant owner' }, { status: 400 });
+      }
+
+      if (!(await canManageMerchantResource(auth.user, merchantId))) {
+        return NextResponse.json({ error: 'You cannot delete this shipping system' }, { status: 403 });
+      }
     }
 
     await ShippingSystem.findByIdAndDelete(id);

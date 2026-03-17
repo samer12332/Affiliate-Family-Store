@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
 import { MerchantNav } from '@/components/admin/merchant-nav';
+import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ORDER_STATUSES } from '@/lib/constants';
+import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -32,6 +34,7 @@ export default function OrdersPage() {
   }, [get, isLoading, router, status, token]);
 
   if (isLoading || !token || !admin) return null;
+  const role = normalizeRole(admin.role);
 
   return (
     <div className="min-h-screen bg-background">
@@ -40,17 +43,17 @@ export default function OrdersPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Orders</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Merchants control status changes. Marketers can track status and delivered dues.
+              Submerchants control status changes. Marketers can track status and delivered dues.
             </p>
           </div>
-          {admin.role !== 'merchant' && (
+          {!isSubmerchantRole(role) && (
             <Link href="/admin/dashboard">
               <Button variant="outline">Back to dashboard</Button>
             </Link>
           )}
         </div>
 
-        {admin.role === 'merchant' && <MerchantNav merchantId={admin.id || admin._id} />}
+        {isSubmerchantRole(role) && <MerchantNav />}
 
         <Card className="mb-6 rounded-3xl p-4">
           <select
@@ -87,7 +90,12 @@ export default function OrdersPage() {
                     <td className="px-4 py-3 font-medium text-foreground">{order.orderNumber}</td>
                     <td className="px-4 py-3 text-muted-foreground">{order.customer?.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{order.governorate}</td>
-                    <td className="px-4 py-3 capitalize text-foreground">{order.status}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <OrderStatusPill status={order.status} />
+                        <OrderUpdatePill order={order} role={role} />
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-foreground">{Number(order.total || 0).toFixed(2)} EGP</td>
                     <td className="px-4 py-3 text-foreground">
                       {order.marketerDuesVisible ? `${Number(order.marketerAmount || 0).toFixed(2)} EGP` : 'Hidden until delivered'}
@@ -107,3 +115,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+

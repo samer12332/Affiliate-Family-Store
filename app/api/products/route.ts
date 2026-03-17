@@ -1,7 +1,9 @@
 import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem, User } from '@/lib/models';
+import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 
 function slugify(value: string): string {
   return value
@@ -24,6 +26,29 @@ async function generateUniqueSlug(base: string): Promise<string> {
   }
 
   return candidate;
+}
+
+async function getLegacyMainMerchantIds() {
+  return (await User.distinct('mainMerchantId', { mainMerchantId: { $ne: null } }))
+    .filter(Boolean)
+    .map((id: any) => id?.toString?.() || String(id));
+}
+
+async function getEligibleSubmerchantIds(mainMerchantId?: any) {
+  const legacyMainMerchantIds = await getLegacyMainMerchantIds();
+  const query: any = {
+    active: true,
+    $or: [
+      { role: 'submerchant' },
+      { role: 'merchant', _id: { $nin: legacyMainMerchantIds } },
+    ],
+  };
+
+  if (mainMerchantId) {
+    query.mainMerchantId = mainMerchantId;
+  }
+
+  return (await User.find(query).distinct('_id')).map((id: any) => id?.toString?.() || String(id));
 }
 
 export async function GET(request: NextRequest) {
@@ -49,10 +74,29 @@ export async function GET(request: NextRequest) {
       query.$or = [{ name: { $regex: search, $options: 'i' } }, { sku: { $regex: search, $options: 'i' } }];
     }
 
+    const actorRole = normalizeRole(authUser?.role);
+
     if (merchantIdParam) {
+      if (authUser && isMarketerRole(actorRole)) {
+        const eligibleIds = await getEligibleSubmerchantIds(authUser.mainMerchantId || undefined);
+        if (!eligibleIds.includes(String(merchantIdParam))) {
+          return NextResponse.json({ error: 'You cannot access this submerchant products' }, { status: 403 });
+        }
+      }
+
       query.merchantId = merchantIdParam;
-    } else if (authUser?.role === 'merchant') {
+    } else if (authUser && isSubmerchantRole(actorRole)) {
       query.merchantId = authUser._id;
+    } else if (authUser && isMainMerchantRole(actorRole)) {
+      const submerchantIds = await User.find({
+        role: { $in: ['submerchant', 'merchant'] },
+        mainMerchantId: authUser._id,
+        active: true,
+      }).distinct('_id');
+      query.merchantId = { $in: submerchantIds };
+    } else if (authUser && isMarketerRole(actorRole)) {
+      const submerchantIds = await getEligibleSubmerchantIds(authUser.mainMerchantId || undefined);
+      query.merchantId = { $in: submerchantIds };
     }
 
     const [products, total] = await Promise.all([
@@ -82,18 +126,26 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'submerchant', 'merchant', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
+    }
+    if (isMainMerchantRole(auth.user.role)) {
+      return NextResponse.json({ error: 'Main merchants cannot create products. Only submerchants can create products.' }, { status: 403 });
     }
 
     const body = await request.json();
     const merchantId = String(body?.merchantId || auth.user._id);
-    if (!canManageMerchantResource(auth.user, merchantId)) {
+    if (!(await canManageMerchantResource(auth.user, merchantId))) {
       return NextResponse.json({ error: 'You cannot create products for this merchant' }, { status: 403 });
     }
 
-    const shippingSystem = await ShippingSystem.findById(body?.shippingSystemId);
+    const shippingSystemId = String(body?.shippingSystemId || '').trim();
+    if (!shippingSystemId || !mongoose.Types.ObjectId.isValid(shippingSystemId)) {
+      return NextResponse.json({ error: 'A valid shipping system is required' }, { status: 400 });
+    }
+
+    const shippingSystem = await ShippingSystem.findById(shippingSystemId);
     if (!shippingSystem) {
       return NextResponse.json({ error: 'Invalid shipping system' }, { status: 400 });
     }
@@ -103,13 +155,17 @@ export async function POST(request: NextRequest) {
     }
 
     const merchant = await User.findById(merchantId);
-    if (!merchant || merchant.role !== 'merchant') {
+    if (!merchant || !isSubmerchantRole(merchant.role)) {
       return NextResponse.json({ error: 'Merchant not found' }, { status: 404 });
     }
 
     const merchantPrice = Number(body?.merchantPrice ?? body?.price);
     if (!Number.isFinite(merchantPrice) || merchantPrice < 0) {
       return NextResponse.json({ error: 'Valid merchant price is required' }, { status: 400 });
+    }
+    const stock = Number(body?.stock);
+    if (!Number.isInteger(stock) || stock < 0) {
+      return NextResponse.json({ error: 'Valid stock quantity is required' }, { status: 400 });
     }
     const suggestedCommission =
       body?.suggestedCommission === '' || body?.suggestedCommission === null || body?.suggestedCommission === undefined
@@ -138,6 +194,7 @@ export async function POST(request: NextRequest) {
       name: String(body?.name || '').trim(),
       slug: finalSlug,
       merchantPrice,
+      stock,
       suggestedCommission,
       price: merchantPrice,
       category: body?.category,

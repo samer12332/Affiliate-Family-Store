@@ -1,6 +1,7 @@
 import { requireRole, sanitizeUser } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
+import { isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -10,7 +11,7 @@ export async function PATCH(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'super_admin']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -22,7 +23,19 @@ export async function PATCH(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (user.isProtected && auth.user.role !== 'owner') {
+    const actorRole = normalizeRole(auth.user.role);
+    const targetRole = normalizeRole(user.role);
+
+    const managedByMainMerchant =
+      isMainMerchantRole(actorRole) &&
+      user.mainMerchantId?.toString?.() === auth.user._id.toString() &&
+      (isSubmerchantRole(targetRole) || targetRole === 'marketer');
+
+    if (isMainMerchantRole(actorRole) && !managedByMainMerchant) {
+      return NextResponse.json({ error: 'You can only manage your own submerchants and marketers' }, { status: 403 });
+    }
+
+    if (user.isProtected && actorRole !== 'owner') {
       return NextResponse.json({ error: 'Protected owner cannot be modified by this user' }, { status: 403 });
     }
 
@@ -39,10 +52,17 @@ export async function PATCH(
     if (body.name !== undefined) update.name = String(body.name).trim();
     if (body.active !== undefined) update.active = Boolean(body.active);
     if (body.role !== undefined) {
-      if (!['owner', 'super_admin', 'merchant', 'marketer'].includes(body.role)) {
+      const normalizedNextRole = normalizeRole(String(body.role));
+      if (!['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'marketer'].includes(normalizedNextRole)) {
         return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
       }
-      update.role = body.role;
+      if (
+        isMainMerchantRole(actorRole) &&
+        !['submerchant', 'marketer'].includes(normalizedNextRole)
+      ) {
+        return NextResponse.json({ error: 'Main merchants can only assign submerchant/marketer roles' }, { status: 403 });
+      }
+      update.role = normalizedNextRole;
     }
 
     if (body.password) {
@@ -50,6 +70,19 @@ export async function PATCH(
         return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
       }
       update.password = await bcryptjs.hash(String(body.password), 10);
+    }
+
+    if (body.mainMerchantId !== undefined && !isMainMerchantRole(actorRole)) {
+      const requestedMainMerchantId = String(body.mainMerchantId || '').trim();
+      if (requestedMainMerchantId) {
+        const mainMerchant = await User.findById(requestedMainMerchantId).select('role');
+        if (!mainMerchant || normalizeRole(mainMerchant.role) !== 'main_merchant') {
+          return NextResponse.json({ error: 'Selected main merchant is invalid' }, { status: 400 });
+        }
+        update.mainMerchantId = requestedMainMerchantId;
+      } else {
+        update.mainMerchantId = null;
+      }
     }
 
     if (body.storeName !== undefined || body.storeSlug !== undefined || body.phone !== undefined) {
@@ -87,7 +120,7 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'super_admin']);
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -98,8 +131,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const actorRole = normalizeRole(auth.user.role);
+    const targetRole = normalizeRole(user.role);
+
     if (user.isProtected) {
       return NextResponse.json({ error: 'Protected owner cannot be deleted' }, { status: 403 });
+    }
+
+    if (isMainMerchantRole(actorRole)) {
+      const canDelete =
+        user.mainMerchantId?.toString?.() === auth.user._id.toString() &&
+        (isSubmerchantRole(targetRole) || targetRole === 'marketer');
+      if (!canDelete) {
+        return NextResponse.json({ error: 'You can only delete your own submerchants and marketers' }, { status: 403 });
+      }
     }
 
     if (auth.user._id.toString() === user._id.toString()) {
