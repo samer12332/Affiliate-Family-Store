@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
 import { Card } from '@/components/ui/card';
+import { SiteLogo } from '@/components/shared/SiteLogo';
 import { BarChart3, ShoppingCart, Package, MessageSquare, Users, LogOut, Truck } from 'lucide-react';
 
 interface DashboardStats {
@@ -42,20 +43,15 @@ export default function AdminDashboard() {
 
     const fetchStats = async () => {
       try {
-        const [ordersRes, productsRes, messagesRes, usersRes] = await Promise.all([
-          get('/orders?limit=5').catch(() => ({ orders: [], total: 0 })),
-          get('/products?limit=5').catch(() => ({ products: [], total: 0 })),
-          get('/messages?limit=5').catch(() => ({ messages: [], total: 0 })),
-          get('/admin/users').catch(() => ({ users: [], total: 0 })),
-        ]);
+        const dashboardRes = await get('/admin/dashboard');
 
         setStats({
-          totalOrders: ordersRes.total ?? ordersRes.pagination?.total ?? 0,
-          totalProducts: productsRes.total ?? productsRes.pagination?.total ?? 0,
-          totalMessages: messagesRes.total ?? messagesRes.pagination?.total ?? 0,
-          totalUsers: usersRes.total ?? usersRes.pagination?.total ?? 0,
-          recentOrders: ordersRes.orders || [],
-          topProducts: productsRes.products || [],
+          totalOrders: Number(dashboardRes.totalOrders ?? 0),
+          totalProducts: Number(dashboardRes.totalProducts ?? 0),
+          totalMessages: Number(dashboardRes.totalMessages ?? 0),
+          totalUsers: Number(dashboardRes.totalUsers ?? 0),
+          recentOrders: Array.isArray(dashboardRes.recentOrders) ? dashboardRes.recentOrders : [],
+          topProducts: Array.isArray(dashboardRes.topProducts) ? dashboardRes.topProducts : [],
         });
       } catch (error) {
         console.error('[v0] Failed to fetch dashboard stats:', error);
@@ -82,9 +78,7 @@ export default function AdminDashboard() {
         {/* Page Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-sm font-bold text-primary-foreground">FS</span>
-            </div>
+            <SiteLogo href="/admin/dashboard" compact />
             <div>
               <h1 className="text-lg font-bold text-foreground">FamilyStore Admin</h1>
               <p className="text-xs text-muted-foreground">Dashboard</p>
