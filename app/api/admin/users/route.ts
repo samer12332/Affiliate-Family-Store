@@ -3,12 +3,9 @@ import { connectDB } from '@/lib/db';
 import { OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD } from '@/lib/constants';
 import { User } from '@/lib/models';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId, parsePositiveInt, safeTrim, validateEmail } from '@/lib/validation';
 import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
 
 async function ensureOwner() {
   const normalizedEmail = OWNER_EMAIL.toLowerCase();
@@ -43,8 +40,8 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const role = normalizeRole(searchParams.get('role'));
-    const limit = parseInt(searchParams.get('limit') || '100', 10);
-    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parsePositiveInt(searchParams.get('limit'), 100, 200);
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
     const actorRole = normalizeRole(auth.user.role);
 
@@ -121,8 +118,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const name = String(body?.name || '').trim();
-    const email = String(body?.email || '').toLowerCase().trim();
+    const name = safeTrim(body?.name, 120);
+    const email = safeTrim(body?.email, 254).toLowerCase();
     const password = String(body?.password || '');
     const role = normalizeRole(String(body?.role || ''));
     const active = body?.active !== false;
@@ -138,11 +135,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid user payload' }, { status: 400 });
     }
 
-    if (!isValidEmail(email)) {
+    if (!validateEmail(email)) {
       return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400 });
     }
 
-    if (password.length < 6) {
+    if (password.length < 6 || password.length > 128) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
@@ -157,6 +154,9 @@ export async function POST(request: NextRequest) {
     } else if (role === 'submerchant' || role === 'marketer') {
       const requestedMainMerchantId = String(body?.mainMerchantId || '').trim();
       if (requestedMainMerchantId) {
+        if (!isValidObjectId(requestedMainMerchantId)) {
+          return NextResponse.json({ error: 'Selected main merchant is invalid' }, { status: 400 });
+        }
         const mainMerchant = await User.findById(requestedMainMerchantId);
         if (!mainMerchant || !isMainMerchantRole(mainMerchant.role)) {
           return NextResponse.json({ error: 'Selected main merchant is invalid' }, { status: 400 });

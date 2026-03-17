@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { validateEmail } from '@/lib/common-validation';
 import { AlertCircle } from 'lucide-react';
 
 export default function AdminLogin() {
   const router = useRouter();
   const { login } = useAdminAuth();
-  const [email, setEmail] = useState('sameryousry99@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +19,14 @@ export default function AdminLogin() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    if (!validateEmail(email)) {
+      setError('Please provide a valid email address');
+      return;
+    }
+    if (password.length < 6 || password.length > 128) {
+      setError('Password must be between 6 and 128 characters');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -54,12 +63,12 @@ export default function AdminLogin() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-stone-800">Email</label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required maxLength={254} />
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-medium text-stone-800">Password</label>
-            <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+            <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required minLength={6} maxLength={128} />
           </div>
 
           <Button type="submit" disabled={loading || !email || !password} className="w-full">

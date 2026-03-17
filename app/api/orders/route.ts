@@ -1,9 +1,10 @@
 import { getManagedSubmerchantIds, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { OWNER_COMMISSION_RATE } from '@/lib/constants';
+import { EGYPTIAN_GOVERNORATES, OWNER_COMMISSION_RATE } from '@/lib/constants';
 import { Commission, Order, Product, ShippingSystem, User } from '@/lib/models';
 import { createNotificationsForUsers } from '@/lib/notifications';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId, parsePositiveInt, safeTrim, validateEmail, validatePhone } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 async function generateOrderNumber(): Promise<string> {
@@ -22,6 +23,8 @@ async function generateOrderNumber(): Promise<string> {
 function normalizeGovernorate(value: string) {
   return String(value || '').trim().toLowerCase();
 }
+
+const ALLOWED_ORDER_STATUSES = new Set(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']);
 
 type StockAdjustment = {
   productId: string;
@@ -78,9 +81,26 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
   let merchantSubtotal = 0;
   let sharedShippingSystemId = '';
   const stockByProduct = new Map<string, number>();
+  const normalizedGovernorate = normalizeGovernorate(governorate);
+  const productIds = [...new Set(orderProducts.map((entry) => String(entry?.productId || '')))];
+  const products = await Product.find({ _id: { $in: productIds } });
+  const productMap = new Map(products.map((product: any) => [product._id.toString(), product]));
+  if (productMap.size !== productIds.length) {
+    throw new Error('One or more selected products no longer exist');
+  }
+
+  const shippingSystemIds = [
+    ...new Set(
+      products
+        .map((product: any) => String(product.shippingSystemId || ''))
+        .filter(Boolean)
+    ),
+  ];
+  const shippingSystems = await ShippingSystem.find({ _id: { $in: shippingSystemIds } });
+  const shippingSystemMap = new Map(shippingSystems.map((entry: any) => [entry._id.toString(), entry]));
 
   for (const entry of orderProducts) {
-    const product = await Product.findById(entry.productId);
+    const product = productMap.get(String(entry.productId));
     if (!product) {
       throw new Error('One or more selected products no longer exist');
     }
@@ -89,15 +109,15 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
       throw new Error('Orders can only contain products from the same merchant');
     }
 
-    const shippingSystem = await ShippingSystem.findById(product.shippingSystemId);
+    const currentShippingSystemId = String(product.shippingSystemId || '');
+    const shippingSystem = shippingSystemMap.get(currentShippingSystemId);
     if (!shippingSystem || shippingSystem.merchantId.toString() !== merchantId) {
       throw new Error(`Product "${product.name}" does not have a valid merchant shipping system`);
     }
 
     const matchedFee = shippingSystem.governorateFees.find(
-      (rate: any) => normalizeGovernorate(rate.governorate) === normalizeGovernorate(governorate)
+      (rate: any) => normalizeGovernorate(rate.governorate) === normalizedGovernorate
     );
-
     if (!matchedFee) {
       throw new Error(`No shipping fee configured for governorate "${governorate}"`);
     }
@@ -113,7 +133,7 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
     }
 
     const salePriceByMarketer = Number(entry.salePriceByMarketer);
-    if (!Number.isFinite(salePriceByMarketer) || salePriceByMarketer < 0) {
+    if (!Number.isFinite(salePriceByMarketer) || salePriceByMarketer < 0 || salePriceByMarketer > 1_000_000) {
       throw new Error(`Invalid selling price for "${product.name}"`);
     }
 
@@ -121,14 +141,13 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
     if (salePriceByMarketer < merchantPrice) {
       throw new Error(`Selling price for "${product.name}" cannot be below merchant price`);
     }
+
     const lineSubtotal = salePriceByMarketer * quantity;
     const merchantLineSubtotal = merchantPrice * quantity;
     const marketerProfit = Math.max(salePriceByMarketer - merchantPrice, 0) * quantity;
-
     subtotal += lineSubtotal;
     merchantSubtotal += merchantLineSubtotal;
 
-    const currentShippingSystemId = String(product.shippingSystemId || '');
     if (!sharedShippingSystemId) {
       sharedShippingSystemId = currentShippingSystemId;
       // Cart policy enforces one shipping system for the grouped order.
@@ -180,13 +199,16 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
 
     const query: any = {};
     const actorRole = normalizeRole(auth.user.role);
     if (status) {
+      if (!ALLOWED_ORDER_STATUSES.has(status)) {
+        return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 });
+      }
       query.status = status;
     }
 
@@ -207,9 +229,9 @@ export async function GET(request: NextRequest) {
     const total = await Order.countDocuments(query);
     const commissionMap = new Map(
       (
-        await Commission.find({
-          orderId: { $in: orders.map((order) => order._id) },
-        })
+        await Commission.find()
+          .where('orderId')
+          .in(orders.map((order) => order._id))
       ).map((entry: any) => [entry.orderId.toString(), entry])
     );
 
@@ -256,13 +278,39 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const merchantId = String(body?.merchantId || '');
+    const merchantId = String(body?.merchantId || '').trim();
     const itemsPayload = Array.isArray(body?.items) ? body.items : [];
     const customer = body?.customer || {};
-    const governorate = String(body?.governorate || '').trim();
+    const governorate = safeTrim(body?.governorate, 80);
 
     if (!merchantId || itemsPayload.length === 0 || !customer?.name || !customer?.phone || !customer?.addressLine || !governorate) {
       return NextResponse.json({ error: 'Missing required order fields' }, { status: 400 });
+    }
+    if (!isValidObjectId(merchantId)) {
+      return NextResponse.json({ error: 'Invalid submerchant reference' }, { status: 400 });
+    }
+    if (!EGYPTIAN_GOVERNORATES.includes(governorate)) {
+      return NextResponse.json({ error: 'Invalid governorate selected' }, { status: 400 });
+    }
+    if (itemsPayload.length > 100) {
+      return NextResponse.json({ error: 'Order item count exceeds maximum allowed' }, { status: 400 });
+    }
+    for (const entry of itemsPayload) {
+      if (!isValidObjectId(String(entry?.productId || ''))) {
+        return NextResponse.json({ error: 'One or more product IDs are invalid' }, { status: 400 });
+      }
+    }
+
+    const customerName = safeTrim(customer.name, 120);
+    const customerPhone = safeTrim(customer.phone, 30);
+    const customerEmail = safeTrim(customer.email || '', 254).toLowerCase();
+    const customerAddressLine = safeTrim(customer.addressLine, 255);
+    const customerNotes = safeTrim(customer.notes || '', 1000);
+    if (!customerName || !customerAddressLine || !validatePhone(customerPhone)) {
+      return NextResponse.json({ error: 'Customer name, phone and address are invalid' }, { status: 400 });
+    }
+    if (customerEmail && !validateEmail(customerEmail)) {
+      return NextResponse.json({ error: 'Customer email is invalid' }, { status: 400 });
     }
 
     const merchant = await User.findById(merchantId).select('role mainMerchantId active');
@@ -287,11 +335,11 @@ export async function POST(request: NextRequest) {
         merchantId,
         marketerId: auth.user._id,
         customer: {
-          name: String(customer.name).trim(),
-          phone: String(customer.phone).trim(),
-          email: String(customer.email || '').trim(),
-          addressLine: String(customer.addressLine).trim(),
-          notes: String(customer.notes || '').trim(),
+          name: customerName,
+          phone: customerPhone,
+          email: customerEmail,
+          addressLine: customerAddressLine,
+          notes: customerNotes,
         },
         governorate,
         shippingFee: calculated.shippingFee,

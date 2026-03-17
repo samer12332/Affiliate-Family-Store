@@ -1,26 +1,43 @@
-# Affiliate Family Store
+﻿# Affiliate Family Store
 
-Affiliate Family Store is a role-based order management system built with Next.js, React, TypeScript, Tailwind CSS, and MongoDB.
+Affiliate Family Store is a role-based affiliate commerce platform built with Next.js, React, TypeScript, Tailwind CSS, and MongoDB.
 
-The project is centered around four roles:
+## Roles
 
 - `owner`
+- `admin`
 - `super_admin`
-- `merchant`
+- `main_merchant`
+- `submerchant` (legacy `merchant` is normalized as submerchant)
 - `marketer`
 
-Merchants own products and configure shipping. Marketers browse merchant pages, create orders using merchant products, and enter their own selling prices. Merchants control order status. The owner and super admins can oversee the platform.
+## Core Behavior
 
-## Main Features
+- Main merchants can manage their own submerchants and marketers.
+- Submerchants manage products, shipping systems, stock, and order fulfillment.
+- Marketers browse authorized submerchant products, manage cart/checkout, and create orders.
+- Owner/admin have platform-wide visibility.
+- Commission flow supports:
+  - owner commission
+  - main merchant commission (when applicable)
+  - marketer dues
+- Commission transfers and complaints are supported with notifications.
 
-- Protected login-first experience
-- Role-based dashboards and permissions
-- Merchant-owned products
-- Merchant shipping by governorate
-- Marketer order creation flow
-- Merchant-only order status updates
-- Owner commission tracking
-- Protected owner account that cannot be deleted
+## Notifications
+
+- In-app notifications page: `/admin/notifications`
+- Unread count is shown in dashboard/header bell badges.
+- Live toast notifications are enabled for authenticated users.
+- Clicking notification actions navigates to target pages and supports mark-as-read.
+
+## Security and Validation Highlights
+
+- Server-side role authorization on protected APIs.
+- Server-side validation for critical payloads (orders, products, shipping, users, stock, complaints, notifications).
+- Passwords are stored hashed (model-level and API-level safeguards).
+- Login/contact endpoints include basic rate-limiting.
+- CSRF protection for state-changing API requests via same-origin checks.
+- Checkout/order totals are recalculated from DB values on the server.
 
 ## Tech Stack
 
@@ -28,17 +45,17 @@ Merchants own products and configure shipping. Marketers browse merchant pages, 
 - React 19
 - TypeScript
 - Tailwind CSS
-- MongoDB with Mongoose
+- MongoDB + Mongoose
 
-## Project Setup
+## Setup
 
-From the project root:
+From project root:
 
 ```bash
 npm install
 ```
 
-Create a local environment file:
+Create `.env`:
 
 ```env
 MONGODB_URI=mongodb://localhost:27017/familystore
@@ -47,73 +64,58 @@ JWT_SECRET=your-secret-key-change-in-production
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
 
-## Start The Project
-
-Run the development server:
+## Run
 
 ```bash
 npm run dev
 ```
 
-Open:
+App URL:
 
 ```text
 http://localhost:3000
 ```
 
-The app now requires login before entering the website.
-
-## Login Route
-
-Shared login page for all roles:
-
-```text
-/admin/login
-```
-
-After login:
-
-- `owner` -> `/admin/dashboard`
-- `super_admin` -> `/admin/dashboard`
-- `merchant` -> `/admin/dashboard`
-- `marketer` -> `/merchant-directory`
-
-## Useful Commands
-
-```bash
-npm run dev
-npm run build
-npm run start
-npx tsc --noEmit
-```
-
-## Main App Routes
+## Main Routes
 
 - `/admin/login`
 - `/admin/dashboard`
-- `/admin/products`
-- `/admin/products/new`
-- `/admin/shipping-systems`
-- `/admin/shipping-systems/new`
-- `/admin/orders`
 - `/admin/users`
+- `/admin/products`
+- `/admin/stocks`
+- `/admin/shipping-systems`
+- `/admin/orders`
+- `/admin/commissions`
+- `/admin/commission-complaints`
+- `/admin/notifications`
 - `/merchant-directory`
 - `/merchant/:merchantId`
+- `/cart`
+- `/checkout`
 
-## Protected Owner Account
+## Scripts
 
-The system owner is seeded as:
+```bash
+npm run dev
+npm run lint
+npm run build
+npm run start
+```
+
+Notes:
+- `npm run lint` runs `tsc --noEmit`.
+- `npm run build` performs production build.
+
+## Owner Account
+
+Protected seeded owner:
 
 - `sameryousry99@gmail.com`
 
-This account is protected:
+This account cannot be deleted/deactivated by non-owner users.
 
-- cannot be deleted
-- cannot delete itself
-- cannot be deactivated
+## QA Artifact
 
-## Notes
+Latest saved QA report:
 
-- MongoDB must be running locally for the app APIs to work correctly.
-- Product images are uploaded from the device and stored as data URLs through the current form flow.
-- Merchant shipping is configured per governorate.
+- `QA_TEST_REPORT_2026-03-18.md`

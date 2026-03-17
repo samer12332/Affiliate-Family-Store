@@ -2,9 +2,13 @@ import { requireAuth, sanitizeUser } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
 import { OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD } from '@/lib/constants';
+import { checkRateLimit, getRequestIp } from '@/lib/rate-limit';
+import { safeTrim, validateEmail } from '@/lib/validation';
 import { generateToken } from '@/server/utils/auth';
 import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
+
+const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
 async function ensureOwnerAccount() {
   const normalizedEmail = OWNER_EMAIL.toLowerCase();
@@ -34,19 +38,46 @@ export async function POST(request: NextRequest) {
     await connectDB();
     await ensureOwnerAccount();
 
+    const requestIp = getRequestIp('unknown', request.headers.get('x-forwarded-for'));
+    const rate = checkRateLimit(`login:${requestIp}`, 10, 60_000);
+    if (!rate.allowed) {
+      return NextResponse.json({ error: 'Too many login attempts. Try again shortly.' }, { status: 429 });
+    }
+
     const { email, password } = await request.json();
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 });
     }
 
-    const normalizedEmail = String(email).toLowerCase().trim();
+    const normalizedEmail = safeTrim(email, 254).toLowerCase();
+    if (!validateEmail(normalizedEmail)) {
+      return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400 });
+    }
+    if (String(password).length < 6 || String(password).length > 128) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const isPasswordValid = await bcryptjs.compare(String(password), user.password);
+    const submittedPassword = String(password);
+    const storedPassword = String(user.password || '');
+    let isPasswordValid = false;
+
+    if (BCRYPT_HASH_REGEX.test(storedPassword)) {
+      isPasswordValid = await bcryptjs.compare(submittedPassword, storedPassword);
+    } else {
+      // Legacy fallback: if a plain-text password exists, migrate immediately to bcrypt hash.
+      isPasswordValid = submittedPassword === storedPassword;
+      if (isPasswordValid) {
+        user.password = await bcryptjs.hash(submittedPassword, 10);
+        await user.save();
+      }
+    }
+
     if (!isPasswordValid) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }

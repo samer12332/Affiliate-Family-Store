@@ -2,6 +2,7 @@ import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth'
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem } from '@/lib/models';
 import { isMainMerchantRole } from '@/lib/roles';
+import { isValidObjectId, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
@@ -64,16 +65,25 @@ export async function PUT(
 
     const body = await request.json();
     const update: any = {};
-    if (body.name !== undefined) update.name = String(body.name).trim();
+    if (body.name !== undefined) {
+      const nextName = safeTrim(body.name, 160);
+      if (!nextName) {
+        return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
+      }
+      update.name = nextName;
+    }
     if (body.slug !== undefined && String(body.slug).trim()) update.slug = String(body.slug).trim().toLowerCase();
     if (body.merchantPrice !== undefined || body.price !== undefined) {
       const merchantPrice = Number(body.merchantPrice ?? body.price);
+      if (!Number.isFinite(merchantPrice) || merchantPrice < 0 || merchantPrice > 1_000_000) {
+        return NextResponse.json({ error: 'Valid merchant price is required' }, { status: 400 });
+      }
       update.merchantPrice = merchantPrice;
       update.price = merchantPrice;
     }
     if (body.stock !== undefined) {
       const stock = Number(body.stock);
-      if (!Number.isInteger(stock) || stock < 0) {
+      if (!Number.isInteger(stock) || stock < 0 || stock > 1_000_000) {
         return NextResponse.json({ error: 'Valid stock quantity is required' }, { status: 400 });
       }
       update.stock = stock;
@@ -86,8 +96,14 @@ export async function PUT(
     }
     if (body.category !== undefined) update.category = body.category;
     if (body.gender !== undefined) update.gender = body.gender;
-    if (body.description !== undefined) update.description = String(body.description || '');
-    if (body.images !== undefined) update.images = Array.isArray(body.images) ? body.images : [];
+    if (body.category !== undefined && !['Clothes', 'Shoes', 'Others'].includes(String(body.category))) {
+      return NextResponse.json({ error: 'Invalid category value' }, { status: 400 });
+    }
+    if (body.gender !== undefined && !['Men', 'Women', 'Children', 'Unisex'].includes(String(body.gender))) {
+      return NextResponse.json({ error: 'Invalid gender value' }, { status: 400 });
+    }
+    if (body.description !== undefined) update.description = safeTrim(body.description, 4000);
+    if (body.images !== undefined) update.images = Array.isArray(body.images) ? body.images.slice(0, 20) : [];
     if (body.availabilityStatus !== undefined) update.availabilityStatus = body.availabilityStatus;
     if (body.featured !== undefined) update.featured = Boolean(body.featured);
     if (body.onSale !== undefined) update.onSale = Boolean(body.onSale);
@@ -113,7 +129,7 @@ export async function PUT(
     }
     if (body.shippingSystemId !== undefined) {
       const shippingSystemId = String(body.shippingSystemId || '').trim();
-      if (!shippingSystemId || !mongoose.Types.ObjectId.isValid(shippingSystemId)) {
+      if (!shippingSystemId || !isValidObjectId(shippingSystemId)) {
         return NextResponse.json({ error: 'A valid shipping system is required' }, { status: 400 });
       }
 

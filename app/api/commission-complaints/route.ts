@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { Commission, CommissionComplaint, Order, User } from '@/lib/models';
 import { createNotificationsForUsers, getAdminUserIds } from '@/lib/notifications';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId, parsePositiveInt, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 function getSettlementField(channel: 'owner' | 'main_merchant' | 'marketer') {
@@ -19,8 +20,8 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const status = String(searchParams.get('status') || '').trim();
-    const page = Math.max(1, Number(searchParams.get('page') || 1));
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || 20)));
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
+    const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
     const skip = (page - 1) * limit;
 
     const query: any = {};
@@ -78,9 +79,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const orderId = String(body?.orderId || '').trim();
     const channel = String(body?.channel || '') as 'owner' | 'main_merchant' | 'marketer';
-    const message = String(body?.message || '').trim();
+    const message = safeTrim(body?.message, 2000);
     if (!orderId || !['owner', 'main_merchant', 'marketer'].includes(channel) || !message) {
       return NextResponse.json({ error: 'orderId, channel and message are required' }, { status: 400 });
+    }
+    if (!isValidObjectId(orderId)) {
+      return NextResponse.json({ error: 'Invalid order reference' }, { status: 400 });
     }
 
     const order = await Order.findById(orderId).select('orderNumber merchantId marketerId');

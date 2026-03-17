@@ -54,6 +54,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const role = normalizeRole(admin.role);
   const marketerDues = Number(order.commission?.marketerAmount || 0);
   const marketerDuesVisible = Boolean(order.marketerDuesVisible);
+  const totalSystemCommissions =
+    Number(order.commission?.ownerAmount || 0) + Number(order.commission?.mainMerchantAmount || 0);
 
   const canChangeStatus =
     isAdminRole(role) || (isSubmerchantRole(role) && order.merchantId === (admin.id || admin._id));
@@ -213,67 +215,79 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <div className="mt-4 space-y-2 text-sm">
               {role !== 'marketer' && (
                 <>
-                  <p>Owner commission: {Number(order.commission?.ownerAmount || 0).toFixed(2)} EGP</p>
-                  <p>Main merchant commission: {Number(order.commission?.mainMerchantAmount || 0).toFixed(2)} EGP</p>
+                  {isSubmerchantRole(role) ? (
+                    <p>Total system commissions: {totalSystemCommissions.toFixed(2)} EGP</p>
+                  ) : (
+                    <>
+                      <p>Owner commission: {Number(order.commission?.ownerAmount || 0).toFixed(2)} EGP</p>
+                      <p>Main merchant commission: {Number(order.commission?.mainMerchantAmount || 0).toFixed(2)} EGP</p>
+                    </>
+                  )}
                   <p>Merchant net: {Number(order.commission?.merchantNet || 0).toFixed(2)} EGP</p>
                 </>
               )}
             </div>
 
-            <div className="mt-6 space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm">
-              <p className="font-medium text-foreground">Commission transfers</p>
-              {transferRows.length === 0 ? (
-                <p className="text-muted-foreground">No payable commission transfers for this order yet.</p>
-              ) : (
-                transferRows.map((row) => {
-                  const senderPaid = Boolean(row.settlement?.senderMarkedPaidAt);
-                  const receiverReceived = Boolean(row.settlement?.receiverMarkedReceivedAt);
-                  return (
-                    <div key={row.key} className="rounded-xl border border-stone-200 bg-white px-3 py-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-foreground">{row.label}</p>
-                          <p className="text-xs text-muted-foreground">{row.amount.toFixed(2)} EGP</p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                            receiverReceived ? 'bg-emerald-100 text-emerald-700' : senderPaid ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {receiverReceived ? 'Received' : senderPaid ? 'Paid, pending receive' : 'Pending payment'}
-                          </span>
-                          {row.canMarkPaid && !senderPaid && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={savingTransfer === `${row.key}:mark_paid`}
-                              onClick={() => markTransfer(row.key as any, 'mark_paid')}
-                            >
-                              {savingTransfer === `${row.key}:mark_paid` ? 'Saving...' : 'Mark paid'}
-                            </Button>
-                          )}
-                          {row.canMarkReceived && senderPaid && !receiverReceived && (
-                            <>
+            {order.status === 'delivered' ? (
+              <div className="mt-6 space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm">
+                <p className="font-medium text-foreground">Commission transfers</p>
+                {transferRows.length === 0 ? (
+                  <p className="text-muted-foreground">No payable commission transfers for this order yet.</p>
+                ) : (
+                  transferRows.map((row) => {
+                    const senderPaid = Boolean(row.settlement?.senderMarkedPaidAt);
+                    const receiverReceived = Boolean(row.settlement?.receiverMarkedReceivedAt);
+                    return (
+                      <div key={row.key} className="rounded-xl border border-stone-200 bg-white px-3 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{row.label}</p>
+                            <p className="text-xs text-muted-foreground">{row.amount.toFixed(2)} EGP</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              receiverReceived ? 'bg-emerald-100 text-emerald-700' : senderPaid ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {receiverReceived ? 'Received' : senderPaid ? 'Paid, pending receive' : 'Pending payment'}
+                            </span>
+                            {row.canMarkPaid && !senderPaid && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                disabled={savingTransfer === `${row.key}:mark_received`}
-                                onClick={() => markTransfer(row.key as any, 'mark_received')}
+                                disabled={savingTransfer === `${row.key}:mark_paid`}
+                                onClick={() => markTransfer(row.key as any, 'mark_paid')}
                               >
-                                {savingTransfer === `${row.key}:mark_received` ? 'Saving...' : 'Mark received'}
+                                {savingTransfer === `${row.key}:mark_paid` ? 'Saving...' : 'Mark paid'}
                               </Button>
-                              <Link href={`/admin/commission-complaints/new?orderId=${id}&channel=${row.key}`}>
-                                <Button size="sm" variant="outline">Didn&apos;t receive</Button>
-                              </Link>
-                            </>
-                          )}
+                            )}
+                            {row.canMarkReceived && senderPaid && !receiverReceived && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={savingTransfer === `${row.key}:mark_received`}
+                                  onClick={() => markTransfer(row.key as any, 'mark_received')}
+                                >
+                                  {savingTransfer === `${row.key}:mark_received` ? 'Saving...' : 'Mark received'}
+                                </Button>
+                                <Link href={`/admin/commission-complaints/new?orderId=${id}&channel=${row.key}`}>
+                                  <Button size="sm" variant="outline">Didn&apos;t receive</Button>
+                                </Link>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
-              {transferError && <p className="text-destructive">{transferError}</p>}
-            </div>
+                    );
+                  })
+                )}
+                {transferError && <p className="text-destructive">{transferError}</p>}
+              </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Commission payments are available only after order status becomes delivered.
+              </div>
+            )}
 
             {(isAdminRole(role) || role === 'main_merchant') && (
               <div className="mt-6 space-y-2 rounded-2xl bg-muted/40 p-4 text-sm">

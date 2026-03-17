@@ -2,6 +2,7 @@ import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth'
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem, User } from '@/lib/models';
 import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { escapeRegex, isValidObjectId, parsePositiveInt, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
@@ -60,10 +61,10 @@ export async function GET(request: NextRequest) {
     const featured = searchParams.get('featured') === 'true';
     const category = searchParams.get('category');
     const gender = searchParams.get('gender');
-    const search = searchParams.get('search');
+    const search = safeTrim(searchParams.get('search') || '', 120);
     const merchantIdParam = searchParams.get('merchantId');
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
 
     const query: any = {};
@@ -71,12 +72,16 @@ export async function GET(request: NextRequest) {
     if (category) query.category = category;
     if (gender) query.gender = gender;
     if (search) {
-      query.$or = [{ name: { $regex: search, $options: 'i' } }, { sku: { $regex: search, $options: 'i' } }];
+      const safeSearch = escapeRegex(search);
+      query.$or = [{ name: { $regex: safeSearch, $options: 'i' } }, { sku: { $regex: safeSearch, $options: 'i' } }];
     }
 
     const actorRole = normalizeRole(authUser?.role);
 
     if (merchantIdParam) {
+      if (!isValidObjectId(merchantIdParam)) {
+        return NextResponse.json({ error: 'Invalid submerchant ID' }, { status: 400 });
+      }
       if (authUser && isMarketerRole(actorRole)) {
         const eligibleIds = await getEligibleSubmerchantIds(authUser.mainMerchantId || undefined);
         if (!eligibleIds.includes(String(merchantIdParam))) {
@@ -135,7 +140,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const merchantId = String(body?.merchantId || auth.user._id);
+    const merchantId = String(body?.merchantId || auth.user._id).trim();
+    if (!isValidObjectId(merchantId)) {
+      return NextResponse.json({ error: 'Invalid merchant reference' }, { status: 400 });
+    }
     if (!(await canManageMerchantResource(auth.user, merchantId))) {
       return NextResponse.json({ error: 'You cannot create products for this merchant' }, { status: 403 });
     }
@@ -159,12 +167,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Merchant not found' }, { status: 404 });
     }
 
+    const productName = safeTrim(body?.name, 160);
+    if (!productName) {
+      return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
+    }
+    if (!['Clothes', 'Shoes', 'Others'].includes(String(body?.category || ''))) {
+      return NextResponse.json({ error: 'Invalid category value' }, { status: 400 });
+    }
+    if (!['Men', 'Women', 'Children', 'Unisex'].includes(String(body?.gender || ''))) {
+      return NextResponse.json({ error: 'Invalid gender value' }, { status: 400 });
+    }
+
     const merchantPrice = Number(body?.merchantPrice ?? body?.price);
-    if (!Number.isFinite(merchantPrice) || merchantPrice < 0) {
+    if (!Number.isFinite(merchantPrice) || merchantPrice < 0 || merchantPrice > 1_000_000) {
       return NextResponse.json({ error: 'Valid merchant price is required' }, { status: 400 });
     }
     const stock = Number(body?.stock);
-    if (!Number.isInteger(stock) || stock < 0) {
+    if (!Number.isInteger(stock) || stock < 0 || stock > 1_000_000) {
       return NextResponse.json({ error: 'Valid stock quantity is required' }, { status: 400 });
     }
     const suggestedCommission =
@@ -175,7 +194,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Suggested commission must be a valid positive number' }, { status: 400 });
     }
 
-    const finalSlug = await generateUniqueSlug(String(body?.slug || body?.name));
+    const finalSlug = await generateUniqueSlug(safeTrim(body?.slug || productName, 180));
     const sizeWeightChart = Array.isArray(body?.sizeWeightChart)
       ? body.sizeWeightChart
           .map((entry: any) => ({
@@ -191,7 +210,7 @@ export async function POST(request: NextRequest) {
 
     const product = await Product.create({
       merchantId,
-      name: String(body?.name || '').trim(),
+      name: productName,
       slug: finalSlug,
       merchantPrice,
       stock,
@@ -203,13 +222,13 @@ export async function POST(request: NextRequest) {
       sizeWeightChart,
       sizes,
       shippingSystemId: shippingSystem._id,
-      description: String(body?.description || ''),
-      images: Array.isArray(body?.images) ? body.images.filter((img: any) => typeof img === 'string' && img) : [],
+      description: safeTrim(body?.description, 4000),
+      images: Array.isArray(body?.images) ? body.images.filter((img: any) => typeof img === 'string' && img).slice(0, 20) : [],
       availabilityStatus: body?.availabilityStatus || 'Available',
       featured: Boolean(body?.featured),
       onSale: Boolean(body?.onSale),
       brand: merchant.merchantProfile?.storeName || merchant.name,
-      sku: String(body?.sku || '').trim(),
+      sku: safeTrim(body?.sku, 120),
     });
 
     return NextResponse.json({ product }, { status: 201 });

@@ -2,6 +2,7 @@ import { canManageMerchantResource, getManagedSubmerchantIds, requireRole } from
 import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models';
 import { isAdminRole, isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { escapeRegex, isValidObjectId, parsePositiveInt, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -13,10 +14,10 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const search = String(searchParams.get('search') || '').trim();
+    const search = safeTrim(searchParams.get('search') || '', 120);
     const merchantIdParam = String(searchParams.get('merchantId') || '').trim();
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || 20)));
-    const page = Math.max(1, Number(searchParams.get('page') || 1));
+    const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
 
     const query: any = {};
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (merchantIdParam) {
+      if (!isValidObjectId(merchantIdParam)) {
+        return NextResponse.json({ error: 'Invalid submerchant ID' }, { status: 400 });
+      }
       const canUseMerchantFilter = await canManageMerchantResource(auth.user, merchantIdParam);
       if (!canUseMerchantFilter && !isAdminRole(actorRole)) {
         return NextResponse.json({ error: 'You cannot view stock for this submerchant' }, { status: 403 });
@@ -38,10 +42,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      const safeSearch = escapeRegex(search);
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { slug: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } },
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { slug: { $regex: safeSearch, $options: 'i' } },
+        { sku: { $regex: safeSearch, $options: 'i' } },
       ];
     }
 

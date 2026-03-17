@@ -14,6 +14,8 @@ export const useApi = () => {
       typeof window !== "undefined" ? window.localStorage.getItem("admin-token") : null;
     const url = `${API_URL}${endpoint}`;
     const response = await fetch(url, {
+      cache: "no-store",
+      credentials: "same-origin",
       headers: {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...(authToken && !(options.headers as Record<string, string> | undefined)?.Authorization

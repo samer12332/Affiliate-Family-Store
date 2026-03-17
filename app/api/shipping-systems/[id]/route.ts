@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { ShippingSystem } from '@/lib/models';
 import { isAdminRole } from '@/lib/roles';
+import { isValidObjectId, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -11,10 +12,27 @@ export async function GET(
 ) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant']);
+    if (!auth.ok) {
+      return auth.response;
+    }
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid shipping system ID' }, { status: 400 });
+    }
     const shippingSystem = await ShippingSystem.findById(id);
     if (!shippingSystem) {
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });
+    }
+
+    if (!isAdminRole(auth.user.role)) {
+      const merchantId = shippingSystem.merchantId?.toString?.();
+      if (!merchantId) {
+        return NextResponse.json({ error: 'Shipping system is missing merchant owner' }, { status: 400 });
+      }
+      if (!(await canManageMerchantResource(auth.user, merchantId))) {
+        return NextResponse.json({ error: 'You cannot access this shipping system' }, { status: 403 });
+      }
     }
 
     return NextResponse.json({ shippingSystem });
@@ -39,6 +57,9 @@ export async function PUT(
     }
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid shipping system ID' }, { status: 400 });
+    }
     const shippingSystem = await ShippingSystem.findById(id);
     if (!shippingSystem) {
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });
@@ -71,16 +92,17 @@ export async function PUT(
           )
       : [];
 
-    if (!String(body?.name || '').trim() || normalizedFees.length === 0) {
+    const name = safeTrim(body?.name, 100);
+    if (!name || normalizedFees.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const updated = await ShippingSystem.findByIdAndUpdate(
       id,
       {
-        name: String(body.name).trim(),
+        name,
         governorateFees: normalizedFees,
-        notes: String(body?.notes || ''),
+        notes: safeTrim(body?.notes, 2000),
         active: body?.active !== false,
       },
       { new: true }
@@ -108,6 +130,9 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid shipping system ID' }, { status: 400 });
+    }
     const shippingSystem = await ShippingSystem.findById(id);
     if (!shippingSystem) {
       return NextResponse.json({ error: 'Shipping system not found' }, { status: 404 });

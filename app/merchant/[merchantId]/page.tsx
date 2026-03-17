@@ -9,6 +9,7 @@ import { useApi } from '@/hooks/useApi';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { validateEmail, validatePhone } from '@/lib/common-validation';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
@@ -96,6 +97,18 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
 
       if (chosenItems.length === 0) {
         setError('Select at least one product.');
+        return;
+      }
+      if (!customer.name.trim() || !customer.phone.trim() || !customer.addressLine.trim()) {
+        setError('Customer name, phone and address are required.');
+        return;
+      }
+      if (!validatePhone(customer.phone)) {
+        setError('Please provide a valid customer phone number.');
+        return;
+      }
+      if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) {
+        setError('Please provide a valid customer email address.');
         return;
       }
 
@@ -351,5 +364,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
     </div>
   );
 }
+
+
 
 

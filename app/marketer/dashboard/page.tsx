@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -15,6 +15,7 @@ export default function MarketerDashboardPage() {
   const { admin, token, isLoading } = useAdminAuth();
   const { get } = useApi();
   const [data, setData] = useState<any>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     if (isLoading) return;
@@ -27,8 +28,11 @@ export default function MarketerDashboardPage() {
       return;
     }
 
-    get('/admin/dashboard')
-      .then(setData)
+    Promise.all([get('/admin/dashboard'), get('/notifications?limit=1')])
+      .then(([dashboard, notifications]) => {
+        setData(dashboard);
+        setUnreadNotifications(Number(notifications?.unreadTotal || 0));
+      })
       .catch((error) => console.error('[v0] Failed to load marketer dashboard', error));
   }, [admin?.role, get, isLoading, router, token]);
 
@@ -47,7 +51,11 @@ export default function MarketerDashboardPage() {
             <Link href="/merchant-directory"><Button variant="outline">Marketplace</Button></Link>
             <Link href="/cart"><Button variant="outline">Cart</Button></Link>
             <Link href="/admin/commissions"><Button variant="outline">Commissions</Button></Link>
-            <Link href="/admin/notifications"><Button variant="outline">Notifications</Button></Link>
+            <Link href="/admin/notifications">
+              <Button variant="outline">
+                {`Notifications${unreadNotifications > 0 ? ` (${Math.min(unreadNotifications, 99)}${unreadNotifications > 99 ? '+' : ''})` : ''}`}
+              </Button>
+            </Link>
             <Link href="/admin/orders"><Button>My orders</Button></Link>
           </div>
         </div>
@@ -96,3 +104,4 @@ export default function MarketerDashboardPage() {
     </div>
   );
 }
+

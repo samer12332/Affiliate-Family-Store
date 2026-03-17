@@ -2,20 +2,34 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShoppingCart, Menu, X, Search } from "lucide-react";
-import { useState } from "react";
+import { ShoppingCart, Menu, X, Search, Bell } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useCart } from "@/hooks/useCart";
+import { useApi } from "@/hooks/useApi";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { cn } from "@/lib/utils";
 import { SiteLogo } from "@/components/shared/SiteLogo";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { getTotalItems } = useCart();
+  const { get } = useApi();
   const { admin, token, isLoading, logout } = useAdminAuth();
   const pathname = usePathname();
   const router = useRouter();
   const isMarketerLoggedIn = !isLoading && !!token && admin?.role === "marketer";
+
+  useEffect(() => {
+    if (!isMarketerLoggedIn) {
+      setUnreadNotifications(0);
+      return;
+    }
+
+    get("/notifications?limit=1")
+      .then((res) => setUnreadNotifications(Number(res?.unreadTotal || 0)))
+      .catch(() => setUnreadNotifications(0));
+  }, [get, isMarketerLoggedIn]);
 
   const navLinks = [
     { href: "/shop", label: "Shop" },
@@ -76,6 +90,16 @@ export function Header() {
             >
               <Search className="w-5 h-5 text-foreground" />
             </button>
+            {isMarketerLoggedIn && (
+              <Link href="/admin/notifications" className="relative p-2" aria-label="Notifications">
+                <Bell className="w-5 h-5 text-foreground" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                  </span>
+                )}
+              </Link>
+            )}
             <Link href="/cart" className="relative p-2">
               <ShoppingCart className="w-5 h-5 text-foreground" />
               {getTotalItems() > 0 && (

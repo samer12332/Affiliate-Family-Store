@@ -4,6 +4,7 @@ import { MAIN_MERCHANT_COMMISSION_RATE, OWNER_COMMISSION_RATE } from '@/lib/cons
 import { Commission, Order, Product, User } from '@/lib/models';
 import { createNotificationsForUsers, getAdminUserIds } from '@/lib/notifications';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 const STATUS_FLOW = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
@@ -77,6 +78,9 @@ export async function GET(
     }
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
+    }
     const order = await Order.findById(id);
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
@@ -202,6 +206,9 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
+    }
     const body = await request.json();
     const order = await Order.findById(id);
     if (!order) {

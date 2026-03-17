@@ -1,8 +1,14 @@
 import mongoose from 'mongoose';
+import bcryptjs from 'bcryptjs';
 
 const USER_ROLES = ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer'] as const;
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'] as const;
 const COMMISSION_STATUSES = ['pending', 'confirmed', 'delivered', 'paid'] as const;
+const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+function isBcryptHash(value: string) {
+  return BCRYPT_HASH_REGEX.test(String(value || ''));
+}
 
 const userSchema = new mongoose.Schema(
   {
@@ -38,10 +44,50 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1, active: 1 });
 userSchema.index({ role: 1, mainMerchantId: 1, active: 1 });
 userSchema.index({ 'merchantProfile.slug': 1 });
+
+userSchema.pre('save', async function (next) {
+  try {
+    if (this.isModified('password')) {
+      const rawPassword = String(this.get('password') || '');
+      if (!isBcryptHash(rawPassword)) {
+        this.set('password', await bcryptjs.hash(rawPassword, 10));
+      }
+    }
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
+userSchema.pre('findOneAndUpdate', async function (next) {
+  try {
+    const update: any = this.getUpdate() || {};
+    const directPassword = update?.password;
+    const setPassword = update?.$set?.password;
+    const nextPassword =
+      typeof setPassword === 'string'
+        ? setPassword
+        : typeof directPassword === 'string'
+          ? directPassword
+          : '';
+
+    if (nextPassword && !isBcryptHash(nextPassword)) {
+      const hashed = await bcryptjs.hash(nextPassword, 10);
+      if (typeof setPassword === 'string') {
+        update.$set = { ...(update.$set || {}), password: hashed };
+      } else {
+        update.password = hashed;
+      }
+      this.setUpdate(update);
+    }
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
 
 const categorySchema = new mongoose.Schema(
   {
@@ -130,7 +176,6 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.index({ merchantId: 1, createdAt: -1 });
-productSchema.index({ slug: 1 });
 productSchema.index({ category: 1 });
 
 const orderItemSchema = new mongoose.Schema(

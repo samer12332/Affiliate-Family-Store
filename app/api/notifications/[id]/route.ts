@@ -1,6 +1,7 @@
 import { requireAuth } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Notification } from '@/lib/models';
+import { isValidObjectId } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function PATCH(
@@ -13,6 +14,9 @@ export async function PATCH(
     if (!auth.ok) return auth.response;
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid notification ID' }, { status: 400 });
+    }
     const body = await request.json();
     const read = Boolean(body?.read);
 

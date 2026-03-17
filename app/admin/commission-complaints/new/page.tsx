@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
-export default function NewCommissionComplaintPage() {
+function NewCommissionComplaintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { admin, token, isLoading } = useAdminAuth();
@@ -106,5 +106,13 @@ export default function NewCommissionComplaintPage() {
         </Card>
       </main>
     </div>
+  );
+}
+
+export default function NewCommissionComplaintPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewCommissionComplaintPageContent />
+    </Suspense>
   );
 }

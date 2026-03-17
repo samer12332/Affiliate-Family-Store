@@ -2,6 +2,7 @@ import { requireRole, sanitizeUser } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
 import { isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId, safeTrim } from '@/lib/validation';
 import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -17,6 +18,9 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+    }
     const body = await request.json();
     const user = await User.findById(id);
     if (!user) {
@@ -49,7 +53,13 @@ export async function PATCH(
 
     const update: any = {};
 
-    if (body.name !== undefined) update.name = String(body.name).trim();
+    if (body.name !== undefined) {
+      const nextName = safeTrim(body.name, 120);
+      if (!nextName) {
+        return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+      }
+      update.name = nextName;
+    }
     if (body.active !== undefined) update.active = Boolean(body.active);
     if (body.role !== undefined) {
       const normalizedNextRole = normalizeRole(String(body.role));
@@ -66,7 +76,7 @@ export async function PATCH(
     }
 
     if (body.password) {
-      if (String(body.password).length < 6) {
+      if (String(body.password).length < 6 || String(body.password).length > 128) {
         return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
       }
       update.password = await bcryptjs.hash(String(body.password), 10);
@@ -75,6 +85,9 @@ export async function PATCH(
     if (body.mainMerchantId !== undefined && !isMainMerchantRole(actorRole)) {
       const requestedMainMerchantId = String(body.mainMerchantId || '').trim();
       if (requestedMainMerchantId) {
+        if (!isValidObjectId(requestedMainMerchantId)) {
+          return NextResponse.json({ error: 'Selected main merchant is invalid' }, { status: 400 });
+        }
         const mainMerchant = await User.findById(requestedMainMerchantId).select('role');
         if (!mainMerchant || normalizeRole(mainMerchant.role) !== 'main_merchant') {
           return NextResponse.json({ error: 'Selected main merchant is invalid' }, { status: 400 });
@@ -126,6 +139,9 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+    }
     const user = await User.findById(id);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

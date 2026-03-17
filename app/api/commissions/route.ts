@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       .limit(120)
       .select('_id orderNumber merchantId marketerId status createdAt');
     const orderIds = orders.map((entry: any) => entry._id);
-    const commissions = await Commission.find({ orderId: { $in: orderIds } });
+    const commissions = await Commission.find().where('orderId').in(orderIds);
     const commissionMap = new Map(commissions.map((entry: any) => [entry.orderId.toString(), entry]));
 
     const merchantIds = [...new Set(orders.map((entry: any) => entry.merchantId?.toString?.()).filter(Boolean))];

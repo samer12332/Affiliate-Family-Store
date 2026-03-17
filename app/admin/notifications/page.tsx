@@ -73,28 +73,50 @@ export default function NotificationsPage() {
           ) : (
             <div className="space-y-3">
               {items.map((item) => (
-                <button
+                <div
                   key={item._id}
-                  type="button"
                   className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                     item.read ? 'border-stone-200 bg-white' : 'border-blue-200 bg-blue-50/60'
                   }`}
-                  onClick={async () => {
-                    if (!item.read) {
-                      await request(`/notifications/${item._id}`, {
-                        method: 'PATCH',
-                        body: JSON.stringify({ read: true }),
-                      });
-                    }
-                    router.push(item.href || '/admin/dashboard');
-                  }}
                 >
                   <div className="flex items-center justify-between gap-4">
                     <p className="font-medium text-foreground">{item.title}</p>
                     {!item.read && <span className="text-xs font-semibold text-blue-700">New</span>}
                   </div>
                   {item.body && <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>}
-                </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (!item.read) {
+                          await request(`/notifications/${item._id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ read: true }),
+                          });
+                        }
+                        router.push(item.href || '/admin/dashboard');
+                      }}
+                    >
+                      Open
+                    </Button>
+                    {!item.read && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          await request(`/notifications/${item._id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ read: true }),
+                          });
+                          await load();
+                        }}
+                      >
+                        Mark as read
+                      </Button>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           )}

@@ -1,6 +1,7 @@
 import { requireAuth } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Notification } from '@/lib/models';
+import { parsePositiveInt } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -10,8 +11,8 @@ export async function GET(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const searchParams = request.nextUrl.searchParams;
-    const page = Math.max(1, Number(searchParams.get('page') || 1));
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || 20)));
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
+    const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
     const skip = (page - 1) * limit;
 

@@ -9,6 +9,7 @@ import { useCart } from '@/hooks/useCart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { validateEmail, validatePhone } from '@/lib/common-validation';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
@@ -80,6 +81,26 @@ export default function CheckoutPage() {
         setError('Customer name, phone, and address are required.');
         return;
       }
+      if (!validatePhone(customer.phone)) {
+        setError('Please provide a valid customer phone number.');
+        return;
+      }
+      if (customer.email && !validateEmail(customer.email)) {
+        setError('Please provide a valid customer email address.');
+        return;
+      }
+      if (
+        cart.some(
+          (item) =>
+            !item.productId ||
+            !Number.isInteger(Number(item.quantity)) ||
+            Number(item.quantity) < 1 ||
+            !Number.isFinite(Number(item.salePriceByMarketer))
+        )
+      ) {
+        setError('Cart contains invalid product entries. Please refresh and try again.');
+        return;
+      }
       const invalidPricingItems = cart.filter(
         (item) => Number(item.salePriceByMarketer || 0) < Number(item.merchantPrice || 0)
       );
@@ -140,9 +161,9 @@ export default function CheckoutPage() {
           <Card className="rounded-3xl border-stone-200 p-6">
             <h2 className="text-lg font-semibold text-stone-900">Customer details</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <Input placeholder="Customer name" value={customer.name} onChange={(event) => setCustomer((prev) => ({ ...prev, name: event.target.value }))} />
-              <Input placeholder="Customer phone" value={customer.phone} onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))} />
-              <Input placeholder="Customer email" value={customer.email} onChange={(event) => setCustomer((prev) => ({ ...prev, email: event.target.value }))} />
+              <Input required maxLength={120} placeholder="Customer name" value={customer.name} onChange={(event) => setCustomer((prev) => ({ ...prev, name: event.target.value }))} />
+              <Input required maxLength={20} placeholder="Customer phone" value={customer.phone} onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))} />
+              <Input type="email" maxLength={254} placeholder="Customer email" value={customer.email} onChange={(event) => setCustomer((prev) => ({ ...prev, email: event.target.value }))} />
               <select
                 value={governorate}
                 onChange={(event) => setGovernorate(event.target.value)}
@@ -153,13 +174,14 @@ export default function CheckoutPage() {
                 ))}
               </select>
               <div className="md:col-span-2">
-                <Input placeholder="Address line" value={customer.addressLine} onChange={(event) => setCustomer((prev) => ({ ...prev, addressLine: event.target.value }))} />
+                <Input required maxLength={255} placeholder="Address line" value={customer.addressLine} onChange={(event) => setCustomer((prev) => ({ ...prev, addressLine: event.target.value }))} />
               </div>
               <div className="md:col-span-2">
                 <textarea
                   value={customer.notes}
                   onChange={(event) => setCustomer((prev) => ({ ...prev, notes: event.target.value }))}
                   className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                  maxLength={1000}
                   placeholder="Customer notes"
                 />
               </div>

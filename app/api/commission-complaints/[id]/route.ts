@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { CommissionComplaint } from '@/lib/models';
+import { isValidObjectId, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function PATCH(
@@ -13,9 +14,12 @@ export async function PATCH(
     if (!auth.ok) return auth.response;
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid complaint ID' }, { status: 400 });
+    }
     const body = await request.json();
     const status = String(body?.status || '').trim();
-    const resolutionNote = String(body?.resolutionNote || '').trim();
+    const resolutionNote = safeTrim(body?.resolutionNote, 2000);
     if (!['open', 'in_review', 'resolved', 'rejected'].includes(status)) {
       return NextResponse.json({ error: 'Invalid complaint status' }, { status: 400 });
     }

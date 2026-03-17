@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/familystore';
+mongoose.set('sanitizeFilter', false);
+mongoose.set('strictQuery', true);
 
 if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable');
@@ -20,6 +22,9 @@ const cached: MongooseCache = globalThis.mongooseCache ?? { conn: null, promise:
 globalThis.mongooseCache = cached;
 
 export async function connectDB() {
+  // Ensure global filter sanitization stays disabled for operator-based filters like $in.
+  mongoose.set('sanitizeFilter', false);
+
   if (cached.conn) {
     console.log('[v0] Using cached MongoDB connection');
     return cached.conn;

@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { Commission, Order, User } from '@/lib/models';
 import { createNotificationsForUsers, getAdminUserIds } from '@/lib/notifications';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 type TransferChannel = 'owner' | 'main_merchant' | 'marketer';
@@ -24,6 +25,9 @@ export async function PATCH(
     if (!auth.ok) return auth.response;
 
     const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
+    }
     const body = await request.json();
     const channel = String(body?.channel || '') as TransferChannel;
     const action = String(body?.action || '') as TransferAction;
@@ -35,8 +39,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid transfer action' }, { status: 400 });
     }
 
-    const order = await Order.findById(id).select('merchantId marketerId');
+    const order = await Order.findById(id).select('merchantId marketerId status');
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    if (String(order.status || '') !== 'delivered') {
+      return NextResponse.json(
+        { error: 'Commission transfers are available only after the order is delivered' },
+        { status: 400 }
+      );
+    }
 
     const commission = await Commission.findOne({ orderId: order._id });
     if (!commission) {
@@ -111,16 +121,30 @@ export async function PATCH(
     await commission.save();
 
     const adminIds = await getAdminUserIds();
+    const marketerId = order.marketerId?.toString?.() || '';
+    const baseRecipients = [
+      ...adminIds,
+      marketerId || null,
+      order.merchantId?.toString?.(),
+      mainMerchantId || null,
+    ].filter((entry) => Boolean(entry));
+
+    const userIds =
+      channel === 'marketer' && action === 'mark_paid'
+        ? [...new Set([marketerId, ...adminIds, order.merchantId?.toString?.(), mainMerchantId || null].filter(Boolean))]
+        : baseRecipients;
+
     await createNotificationsForUsers({
-      userIds: [
-        ...adminIds,
-        order.marketerId?.toString?.(),
-        order.merchantId?.toString?.(),
-        mainMerchantId || null,
-      ].filter((id) => String(id || '') !== auth.user._id.toString()),
+      userIds: userIds.filter((uid) => String(uid || '') !== auth.user._id.toString()),
       type: 'commission_transfer',
-      title: `Commission ${action === 'mark_paid' ? 'payment' : 'receipt'} updated`,
-      body: `${channel.replace('_', ' ')} channel was marked ${action === 'mark_paid' ? 'paid' : 'received'}.`,
+      title:
+        channel === 'marketer' && action === 'mark_paid'
+          ? 'Marketer dues marked as paid'
+          : `Commission ${action === 'mark_paid' ? 'payment' : 'receipt'} updated`,
+      body:
+        channel === 'marketer' && action === 'mark_paid'
+          ? 'A payer marked your marketer commission as paid.'
+          : `${channel.replace('_', ' ')} channel was marked ${action === 'mark_paid' ? 'paid' : 'received'}.`,
       href: `/admin/orders/${order._id}`,
       metadata: { orderId: order._id?.toString?.(), channel, action },
     });

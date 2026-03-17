@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Bell } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
 import { MerchantNav } from '@/components/admin/merchant-nav';
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const { admin, token, isLoading, logout } = useAdminAuth();
   const { get } = useApi();
   const [data, setData] = useState<DashboardData | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     if (isLoading) return;
@@ -51,8 +53,11 @@ export default function DashboardPage() {
       return;
     }
 
-    get('/admin/dashboard')
-      .then(setData)
+    Promise.all([get('/admin/dashboard'), get('/notifications?limit=1')])
+      .then(([dashboard, notifications]) => {
+        setData(dashboard);
+        setUnreadNotifications(Number(notifications?.unreadTotal || 0));
+      })
       .catch((error) => console.error('[v0] Failed to load dashboard', error));
   }, [admin?.role, get, isLoading, router, token]);
 
@@ -74,14 +79,12 @@ export default function DashboardPage() {
             { href: '/admin/shipping-systems', label: 'Shipping' },
             { href: '/admin/commissions', label: 'Commissions' },
             { href: '/admin/commission-complaints', label: 'Complaints' },
-            { href: '/admin/notifications', label: 'Notifications' },
           ]
         : isMainMerchantRole(role)
           ? [
               { href: '/admin/users', label: 'My users' },
               { href: '/admin/orders', label: 'Orders' },
               { href: '/admin/commissions', label: 'Commissions' },
-              { href: '/admin/notifications', label: 'Notifications' },
             ]
           : [];
 
@@ -97,8 +100,10 @@ export default function DashboardPage() {
             { label: 'Submerchant orders', value: data?.totalOrders ?? 0 },
             { label: 'My products', value: data?.totalProducts ?? 0 },
             { label: 'Payable to marketers', value: `${Number(data?.payableToMarketers || 0).toFixed(2)} EGP` },
-            { label: 'Owner commission due', value: `${Number(data?.ownerCommissionDue || 0).toFixed(2)} EGP` },
-            { label: 'Main merchant commission due', value: `${Number(data?.mainMerchantCommissionDue || 0).toFixed(2)} EGP` },
+            {
+              label: 'Total system commissions',
+              value: `${(Number(data?.ownerCommissionDue || 0) + Number(data?.mainMerchantCommissionDue || 0)).toFixed(2)} EGP`,
+            },
           ]
         : isMainMerchantRole(role)
           ? [
@@ -127,26 +132,40 @@ export default function DashboardPage() {
             <h1 className="mt-2 text-3xl font-bold text-stone-900">Welcome, {admin.name}</h1>
             <p className="mt-1 text-sm text-stone-600">{admin.email}</p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              logout();
-              router.push('/admin/login');
-            }}
-          >
-            Logout
-          </Button>
+          <div className="flex items-center gap-3">
+            <Link href="/admin/notifications" className="relative">
+              <Button variant="outline" size="icon" aria-label="Notifications">
+                <Bell className="h-5 w-5" />
+              </Button>
+              {unreadNotifications > 0 && (
+                <span className="absolute -right-1 -top-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </Link>
+            <Button
+              variant="outline"
+              onClick={() => {
+                logout();
+                router.push('/admin/login');
+              }}
+            >
+              Logout
+            </Button>
+          </div>
         </div>
 
         {isSubmerchantRole(role) ? (
           <MerchantNav />
         ) : (
           <div className="mb-8 flex flex-wrap gap-3">
-            {nav.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <Button variant="outline">{item.label}</Button>
-              </Link>
-            ))}
+            {nav.map((item) => {
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button variant="outline">{item.label}</Button>
+                </Link>
+              );
+            })}
           </div>
         )}
 

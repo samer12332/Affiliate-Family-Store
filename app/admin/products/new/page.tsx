@@ -131,6 +131,14 @@ export default function NewProductPage() {
     event.preventDefault();
     setError('');
 
+    if (!formData.name.trim()) {
+      setError('Product name is required.');
+      return;
+    }
+    if (!Number.isFinite(Number(formData.merchantPrice)) || Number(formData.merchantPrice) < 0) {
+      setError('Please provide a valid merchant price.');
+      return;
+    }
     if (!formData.shippingSystemId) {
       setError('Please create or select a shipping system before saving this product.');
       return;
@@ -177,7 +185,7 @@ export default function NewProductPage() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Product name</label>
-              <Input placeholder="Product name" value={formData.name} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} />
+              <Input required maxLength={160} placeholder="Product name" value={formData.name} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Slug</label>
@@ -185,7 +193,7 @@ export default function NewProductPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Merchant price</label>
-              <Input type="number" min="0" step="0.01" placeholder="Merchant price" value={formData.merchantPrice} onChange={(e) => setFormData((prev) => ({ ...prev, merchantPrice: e.target.value }))} />
+              <Input required type="number" min="0" max="1000000" step="0.01" placeholder="Merchant price" value={formData.merchantPrice} onChange={(e) => setFormData((prev) => ({ ...prev, merchantPrice: e.target.value }))} />
               {isSubmerchantRole(role) && (
                 <p className="text-xs text-muted-foreground">
                   This price includes commission deductions of {(totalCommissionRate * 100).toFixed(0)}%
@@ -196,7 +204,7 @@ export default function NewProductPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Stock quantity</label>
-              <Input type="number" min="0" step="1" placeholder="Stock quantity" value={formData.stock} onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))} />
+              <Input required type="number" min="0" max="1000000" step="1" placeholder="Stock quantity" value={formData.stock} onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Suggested commission (optional)</label>
@@ -231,7 +239,7 @@ export default function NewProductPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Shipping system</label>
-              <select value={formData.shippingSystemId} onChange={(e) => setFormData((prev) => ({ ...prev, shippingSystemId: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
+              <select required value={formData.shippingSystemId} onChange={(e) => setFormData((prev) => ({ ...prev, shippingSystemId: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
                 {shippingSystems.length === 0 && <option value="">No shipping systems available</option>}
                 {shippingSystems.map((system) => (
                   <option key={system._id} value={system._id}>{system.name}</option>

@@ -1,7 +1,9 @@
 import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
+import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { Product, ShippingSystem, User } from '@/lib/models';
 import { isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 function normalize(text: string) {
@@ -17,13 +19,29 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { items, governorate, merchantId } = body;
+    const items = Array.isArray(body?.items) ? body.items : [];
+    const governorate = safeTrim(body?.governorate, 80);
+    const merchantId = String(body?.merchantId || '').trim();
 
     if (!Array.isArray(items) || items.length === 0 || !governorate || !merchantId) {
       return NextResponse.json(
         { error: 'items, merchantId and governorate are required' },
         { status: 400 }
       );
+    }
+    if (!isValidObjectId(merchantId)) {
+      return NextResponse.json({ error: 'Invalid merchant reference' }, { status: 400 });
+    }
+    if (!EGYPTIAN_GOVERNORATES.includes(governorate)) {
+      return NextResponse.json({ error: 'Invalid governorate selected' }, { status: 400 });
+    }
+    if (items.length > 100) {
+      return NextResponse.json({ error: 'Too many items in one request' }, { status: 400 });
+    }
+    for (const item of items) {
+      if (!isValidObjectId(String(item?.productId || ''))) {
+        return NextResponse.json({ error: 'Invalid product reference in request' }, { status: 400 });
+      }
     }
 
     const merchant = await User.findById(String(merchantId)).select('role mainMerchantId active');
@@ -38,21 +56,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const normalizedGovernorate = normalize(governorate);
+    const productIds = [...new Set(items.map((item: any) => String(item?.productId || '')))];
+    const products = await Product.find({ _id: { $in: productIds } })
+      .select('_id name merchantId shippingSystemId')
+      .lean();
+    const productMap = new Map(products.map((product: any) => [product._id.toString(), product]));
+    if (productMap.size !== productIds.length) {
+      return NextResponse.json({ error: 'Invalid merchant product selection' }, { status: 400 });
+    }
+
+    const shippingSystemIds = [
+      ...new Set(products.map((product: any) => String(product.shippingSystemId || '')).filter(Boolean)),
+    ];
+    const shippingSystems = await ShippingSystem.find({ _id: { $in: shippingSystemIds } })
+      .select('_id governorateFees')
+      .lean();
+    const shippingMap = new Map(shippingSystems.map((entry: any) => [entry._id.toString(), entry]));
+
     let shippingFee = 0;
     let sharedShippingSystemId = '';
     for (const item of items) {
-      const product = await Product.findById(item.productId);
-      if (!product || product.merchantId.toString() !== String(merchantId)) {
+      const product = productMap.get(String(item.productId));
+      if (!product || String(product.merchantId) !== String(merchantId)) {
         return NextResponse.json({ error: 'Invalid merchant product selection' }, { status: 400 });
       }
 
-      const shippingSystem = await ShippingSystem.findById(product.shippingSystemId);
+      const currentShippingSystemId = String(product.shippingSystemId || '');
+      const shippingSystem = shippingMap.get(currentShippingSystemId);
       if (!shippingSystem) {
         return NextResponse.json({ error: `No shipping system for "${product.name}"` }, { status: 400 });
       }
 
-      const matched = shippingSystem.governorateFees.find(
-        (entry: any) => normalize(entry.governorate) === normalize(governorate)
+      const matched = (shippingSystem.governorateFees || []).find(
+        (entry: any) => normalize(entry.governorate) === normalizedGovernorate
       );
       if (!matched) {
         return NextResponse.json(
@@ -61,7 +98,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const currentShippingSystemId = String(product.shippingSystemId || '');
       if (!sharedShippingSystemId) {
         sharedShippingSystemId = currentShippingSystemId;
         // Cart policy enforces one shipping system for the grouped merchant cart.

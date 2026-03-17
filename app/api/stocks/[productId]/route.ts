@@ -1,6 +1,7 @@
 import { canManageMerchantResource, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models';
+import { isValidObjectId } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function PATCH(
@@ -15,10 +16,13 @@ export async function PATCH(
     }
 
     const { productId } = await params;
+    if (!isValidObjectId(productId)) {
+      return NextResponse.json({ error: 'Invalid product ID' }, { status: 400 });
+    }
     const body = await request.json();
     const nextStock = Number(body?.stock);
 
-    if (!Number.isInteger(nextStock) || nextStock < 0) {
+    if (!Number.isInteger(nextStock) || nextStock < 0 || nextStock > 1_000_000) {
       return NextResponse.json({ error: 'Stock must be a non-negative integer' }, { status: 400 });
     }
 

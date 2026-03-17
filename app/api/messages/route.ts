@@ -1,10 +1,18 @@
+import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
+import { checkRateLimit, getRequestIp } from '@/lib/rate-limit';
+import { isValidObjectId, parsePositiveInt, safeTrim, validateEmail, validatePhone } from '@/lib/validation';
 import { Message } from '@/lib/models';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
+    const requestIp = getRequestIp('unknown', request.headers.get('x-forwarded-for'));
+    const rate = checkRateLimit(`contact:${requestIp}`, 15, 60_000);
+    if (!rate.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again in a minute.' }, { status: 429 });
+    }
 
     const body = await request.json();
     const { type, name, email, phone, message, productId } = body;
@@ -22,13 +30,29 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const normalizedName = safeTrim(name, 120);
+    const normalizedEmail = safeTrim(email, 254).toLowerCase();
+    const normalizedPhone = safeTrim(phone, 30);
+    const normalizedMessage = safeTrim(message, 4000);
+    if (!normalizedName || !normalizedMessage) {
+      return NextResponse.json({ error: 'Invalid message payload' }, { status: 400 });
+    }
+    if (!validateEmail(normalizedEmail)) {
+      return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400 });
+    }
+    if (normalizedPhone && !validatePhone(normalizedPhone)) {
+      return NextResponse.json({ error: 'Please provide a valid phone number' }, { status: 400 });
+    }
+    if (productId && !isValidObjectId(String(productId))) {
+      return NextResponse.json({ error: 'Invalid product reference' }, { status: 400 });
+    }
 
     const msg = new Message({
       type,
-      name,
-      email,
-      phone: phone || '',
-      message,
+      name: normalizedName,
+      email: normalizedEmail,
+      phone: normalizedPhone || '',
+      message: normalizedMessage,
       productId: productId || null,
     });
 
@@ -50,11 +74,15 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
+    const auth = await requireRole(request, ['owner', 'admin', 'super_admin']);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get('type');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
 
     const query: any = {};

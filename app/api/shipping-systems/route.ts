@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { ShippingSystem, User } from '@/lib/models';
 import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { isValidObjectId, parsePositiveInt, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 async function ensureShippingSystemIndexes() {
@@ -21,13 +22,16 @@ export async function GET(request: NextRequest) {
     const authUser = await getAuthUser(request);
     const searchParams = request.nextUrl.searchParams;
     const merchantId = searchParams.get('merchantId');
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parsePositiveInt(searchParams.get('limit'), 50, 100);
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
 
     const query: any = {};
     const actorRole = normalizeRole(authUser?.role);
     if (merchantId) {
+      if (!isValidObjectId(merchantId)) {
+        return NextResponse.json({ error: 'Invalid submerchant ID' }, { status: 400 });
+      }
       if (authUser && isMarketerRole(actorRole) && authUser.mainMerchantId) {
         const merchant = await User.findById(merchantId).select('mainMerchantId role active');
         const allowed =
@@ -109,7 +113,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const merchantId = String(body?.merchantId || auth.user._id);
+    const merchantId = String(body?.merchantId || auth.user._id).trim();
+    if (!isValidObjectId(merchantId)) {
+      return NextResponse.json({ error: 'Invalid merchant reference' }, { status: 400 });
+    }
     if (!(await canManageMerchantResource(auth.user, merchantId))) {
       return NextResponse.json({ error: 'You cannot manage shipping for this merchant' }, { status: 403 });
     }
@@ -129,15 +136,16 @@ export async function POST(request: NextRequest) {
           )
       : [];
 
-    if (!String(body?.name || '').trim() || normalizedFees.length === 0) {
+    const name = safeTrim(body?.name, 100);
+    if (!name || normalizedFees.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const shippingSystem = await ShippingSystem.create({
       merchantId,
-      name: String(body.name).trim(),
+      name,
       governorateFees: normalizedFees,
-      notes: String(body?.notes || ''),
+      notes: safeTrim(body?.notes, 2000),
       active: body?.active !== false,
     });
 

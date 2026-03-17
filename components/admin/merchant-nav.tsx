@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -11,7 +11,6 @@ const links = [
   { href: '/admin/stocks', label: 'Stock', match: 'startsWith' as const },
   { href: '/admin/orders', label: 'Orders', match: 'startsWith' as const },
   { href: '/admin/commissions', label: 'Commissions', match: 'startsWith' as const },
-  { href: '/admin/notifications', label: 'Notifications', match: 'startsWith' as const },
   { href: '/admin/shipping-systems', label: 'Shipping', match: 'startsWith' as const },
 ];
 
