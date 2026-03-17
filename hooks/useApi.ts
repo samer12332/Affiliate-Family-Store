@@ -26,18 +26,18 @@ export const useApi = () => {
       ...options,
     });
 
-    const rawBody = await response.text();
     const contentType = response.headers.get("content-type") || "";
     const isJson = contentType.includes("application/json");
     let data: any = {};
-    if (rawBody.length > 0) {
-      if (isJson) {
-        try {
-          data = JSON.parse(rawBody);
-        } catch {
-          data = { error: "Invalid JSON response from server" };
-        }
-      } else {
+    if (isJson) {
+      try {
+        data = await response.json();
+      } catch {
+        data = { error: "Invalid JSON response from server" };
+      }
+    } else {
+      const rawBody = await response.text();
+      if (rawBody.length > 0) {
         data = { error: rawBody };
       }
     }
