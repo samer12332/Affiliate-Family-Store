@@ -17,12 +17,16 @@ function canTransition(currentStatus: string, nextStatus: string) {
 }
 
 async function ensureCommissionForOrder(order: any) {
+  const merchantSubtotal = order.items.reduce(
+    (sum: number, item: any) => sum + Number(item.merchantPrice || 0) * Number(item.quantity || 0),
+    0
+  );
   const marketerAmount = order.items.reduce(
     (sum: number, item: any) => sum + Number(item.marketerProfit || 0),
     0
   );
-  const ownerAmount = Number(order.subtotal || 0) * OWNER_COMMISSION_RATE;
-  const merchantNet = Math.max(Number(order.subtotal || 0) - ownerAmount - marketerAmount, 0);
+  const ownerAmount = merchantSubtotal * OWNER_COMMISSION_RATE;
+  const merchantNet = Math.max(merchantSubtotal - ownerAmount, 0);
 
   const commission = await Commission.findOneAndUpdate(
     { orderId: order._id },

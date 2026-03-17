@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 
 export interface CartItem {
   productId: string;
+  merchantId: string;
+  merchantName: string;
   productName: string;
   productSlug: string;
   productImage: string;
@@ -11,6 +13,8 @@ export interface CartItem {
   selectedSize: string;
   quantity: number;
   price: number;
+  merchantPrice: number;
+  salePriceByMarketer: number;
   shippingFee: number;
 }
 
@@ -22,7 +26,22 @@ const readCartFromStorage = (): CartItem[] => {
     const savedCart = localStorage.getItem(CART_STORAGE_KEY);
     if (!savedCart) return [];
     const parsed = JSON.parse(savedCart);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: any) => ({
+      productId: String(item?.productId || ''),
+      merchantId: String(item?.merchantId || ''),
+      merchantName: String(item?.merchantName || ''),
+      productName: String(item?.productName || ''),
+      productSlug: String(item?.productSlug || ''),
+      productImage: String(item?.productImage || ''),
+      selectedColor: String(item?.selectedColor || ''),
+      selectedSize: String(item?.selectedSize || ''),
+      quantity: Math.max(1, Number(item?.quantity || 1)),
+      price: Number(item?.price || 0),
+      merchantPrice: Number(item?.merchantPrice ?? item?.price ?? 0),
+      salePriceByMarketer: Number(item?.salePriceByMarketer ?? item?.price ?? 0),
+      shippingFee: Number(item?.shippingFee || 0),
+    })).filter((item) => item.productId);
   } catch (error) {
     console.error("[v0] Error parsing cart:", error);
     return [];
@@ -127,6 +146,23 @@ export const useCart = () => {
     }
   };
 
+  const updateSalePrice = (
+    productId: string,
+    color: string,
+    size: string,
+    salePriceByMarketer: number
+  ) => {
+    setCart((prevCart) =>
+      prevCart.map((i) =>
+        i.productId === productId &&
+        i.selectedColor === color &&
+        i.selectedSize === size
+          ? { ...i, salePriceByMarketer, price: salePriceByMarketer }
+          : i
+      )
+    );
+  };
+
   const clearCart = () => {
     setCart([]);
   };
@@ -153,6 +189,7 @@ export const useCart = () => {
     addItem,
     removeItem,
     updateQuantity,
+    updateSalePrice,
     clearCart,
     getTotalItems,
     getSubtotal,

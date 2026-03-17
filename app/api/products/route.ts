@@ -129,6 +129,9 @@ export async function POST(request: NextRequest) {
           }))
           .filter((entry: any) => entry.size && Number.isFinite(entry.minWeightKg) && Number.isFinite(entry.maxWeightKg))
       : [];
+    const sizes = Array.isArray(body?.sizes)
+      ? body.sizes.map((value: any) => String(value).trim()).filter(Boolean)
+      : sizeWeightChart.map((entry: any) => entry.size);
 
     const product = await Product.create({
       merchantId,
@@ -141,7 +144,7 @@ export async function POST(request: NextRequest) {
       gender: body?.gender,
       colors: Array.isArray(body?.colors) ? body.colors.map((value: any) => String(value).trim()).filter(Boolean) : [],
       sizeWeightChart,
-      sizes: sizeWeightChart.map((entry: any) => entry.size),
+      sizes,
       shippingSystemId: shippingSystem._id,
       description: String(body?.description || ''),
       images: Array.isArray(body?.images) ? body.images.filter((img: any) => typeof img === 'string' && img) : [],

@@ -58,8 +58,11 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           gender: product.gender || GENDER_TYPES[0],
           colors: Array.isArray(product.colors) ? product.colors.join(', ') : '',
           sizeWeightChart: Array.isArray(product.sizeWeightChart)
+            && product.sizeWeightChart.length > 0
             ? product.sizeWeightChart.map((entry: any) => `${entry.size} ${entry.minWeightKg}-${entry.maxWeightKg}`).join('\n')
-            : '',
+            : Array.isArray(product.sizes)
+              ? product.sizes.join('\n')
+              : '',
           shippingSystemId: product.shippingSystemId || '',
           availabilityStatus: product.availabilityStatus || AVAILABILITY_STATUS[0],
           description: product.description || '',
@@ -69,6 +72,31 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   }, [get, id, isLoading, router, token]);
 
   if (isLoading || !token || !admin) return null;
+
+  const parseSizeLines = (value: string) => {
+    const sizeWeightChart: Array<{ size: string; minWeightKg: number; maxWeightKg: number }> = [];
+    const sizes: string[] = [];
+
+    value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const weighted = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
+        if (weighted) {
+          sizeWeightChart.push({
+            size: weighted[1].toUpperCase(),
+            minWeightKg: Number(weighted[2]),
+            maxWeightKg: Number(weighted[3]),
+          });
+          return;
+        }
+
+        sizes.push(line.toUpperCase());
+      });
+
+    return { sizeWeightChart, sizes };
+  };
 
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -94,20 +122,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const sizeWeightChart = formData.sizeWeightChart
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const match = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
-        if (!match) return null;
-        return {
-          size: match[1].toUpperCase(),
-          minWeightKg: Number(match[2]),
-          maxWeightKg: Number(match[3]),
-        };
-      })
-      .filter(Boolean);
+    const { sizeWeightChart, sizes } = parseSizeLines(formData.sizeWeightChart);
 
     await put(`/products/${id}`, {
       ...formData,
@@ -116,6 +131,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         formData.suggestedCommission === '' ? null : Number(formData.suggestedCommission),
       colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
       sizeWeightChart,
+      sizes,
       images: images.map((entry) => entry.trim()).filter(Boolean),
     });
     router.push('/admin/products');

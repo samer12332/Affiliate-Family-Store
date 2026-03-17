@@ -25,6 +25,7 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
   const items = [];
   let subtotal = 0;
   let shippingFee = 0;
+  let merchantSubtotal = 0;
 
   for (const entry of orderProducts) {
     const product = await Product.findById(entry.productId);
@@ -57,9 +58,11 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
 
     const merchantPrice = Number(product.merchantPrice ?? product.price ?? 0);
     const lineSubtotal = salePriceByMarketer * quantity;
+    const merchantLineSubtotal = merchantPrice * quantity;
     const marketerProfit = Math.max(salePriceByMarketer - merchantPrice, 0) * quantity;
 
     subtotal += lineSubtotal;
+    merchantSubtotal += merchantLineSubtotal;
     shippingFee += Number(matchedFee.fee) * quantity;
 
     items.push({
@@ -80,10 +83,11 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
   return {
     items,
     subtotal,
+    merchantSubtotal,
     shippingFee,
     total: subtotal + shippingFee,
     marketerAmount: items.reduce((sum, item) => sum + item.marketerProfit, 0),
-    ownerAmount: subtotal * OWNER_COMMISSION_RATE,
+    ownerAmount: merchantSubtotal * OWNER_COMMISSION_RATE,
   };
 }
 

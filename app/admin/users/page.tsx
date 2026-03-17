@@ -13,6 +13,9 @@ export default function UsersPage() {
   const { admin, token, isLoading } = useAdminAuth();
   const { get, post, request, delete: deleteRequest } = useApi();
   const [users, setUsers] = useState<any[]>([]);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -42,19 +45,35 @@ export default function UsersPage() {
     return null;
   }
 
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
   const createUser = async (event: React.FormEvent) => {
     event.preventDefault();
-    const data = await post('/admin/users', form);
-    setUsers((prev) => [data.user, ...prev]);
-    setForm({
-      name: '',
-      email: '',
-      password: '',
-      role: 'merchant',
-      storeName: '',
-      storeSlug: '',
-      phone: '',
-    });
+    setError('');
+
+    if (!isValidEmail(form.email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const data = await post('/admin/users', form);
+      setUsers((prev) => [data.user, ...prev]);
+      setForm({
+        name: '',
+        email: '',
+        password: '',
+        role: 'merchant',
+        storeName: '',
+        storeSlug: '',
+        phone: '',
+      });
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to create user');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -75,7 +94,7 @@ export default function UsersPage() {
         <Card className="mb-6 rounded-3xl p-6">
           <form onSubmit={createUser} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Full name" />
-            <input value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Email" />
+            <input type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Email" />
             <input value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Password" />
             <select value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm">
               <option value="merchant">merchant</option>
@@ -85,8 +104,9 @@ export default function UsersPage() {
             <input value={form.storeName} onChange={(e) => setForm((prev) => ({ ...prev, storeName: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Store name for merchants" />
             <input value={form.storeSlug} onChange={(e) => setForm((prev) => ({ ...prev, storeSlug: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Store slug" />
             <input value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Phone" />
-            <Button type="submit">Create user</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create user'}</Button>
           </form>
+          {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
         </Card>
 
         <div className="grid gap-4">
@@ -117,11 +137,25 @@ export default function UsersPage() {
                     <Button
                       variant="destructive"
                       onClick={async () => {
-                        await deleteRequest(`/admin/users/${user._id}`);
-                        setUsers((prev) => prev.filter((entry) => entry._id !== user._id));
+                        const confirmed = window.confirm(`Delete ${user.name} (${user.email})?`);
+                        if (!confirmed) {
+                          return;
+                        }
+
+                        try {
+                          setError('');
+                          setDeletingId(user._id);
+                          await deleteRequest(`/admin/users/${user._id}`);
+                          setUsers((prev) => prev.filter((entry) => entry._id !== user._id));
+                        } catch (deleteError) {
+                          setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete user');
+                        } finally {
+                          setDeletingId(null);
+                        }
                       }}
+                      disabled={deletingId === user._id}
                     >
-                      Delete
+                      {deletingId === user._id ? 'Deleting...' : 'Delete'}
                     </Button>
                   )}
                 </div>

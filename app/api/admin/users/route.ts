@@ -5,6 +5,10 @@ import { User } from '@/lib/models';
 import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 async function ensureOwner() {
   const normalizedEmail = OWNER_EMAIL.toLowerCase();
   let owner = await User.findOne({ email: normalizedEmail });
@@ -96,6 +100,10 @@ export async function POST(request: NextRequest) {
 
     if (!name || !email || !password || !['merchant', 'marketer', 'super_admin'].includes(role)) {
       return NextResponse.json({ error: 'Invalid user payload' }, { status: 400 });
+    }
+
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400 });
     }
 
     if (password.length < 6) {

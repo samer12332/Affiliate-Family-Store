@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
@@ -36,7 +37,7 @@ export default function DashboardPage() {
     }
 
     if (admin?.role === 'marketer') {
-      router.push('/merchant-directory');
+      router.push('/marketer/dashboard');
       return;
     }
 
@@ -58,12 +59,14 @@ export default function DashboardPage() {
             { href: '/admin/users', label: 'Users' },
             { href: '/admin/orders', label: 'All orders' },
           ]
-        : [
-            { href: '/admin/products', label: 'Products' },
-            { href: '/admin/orders', label: 'Orders' },
-            { href: '/admin/shipping-systems', label: 'Shipping' },
-            { href: '/admin/users', label: 'Users' },
-          ];
+        : admin.role === 'owner'
+          ? [
+              { href: '/admin/products', label: 'Products' },
+              { href: '/admin/orders', label: 'Orders' },
+              { href: '/admin/shipping-systems', label: 'Shipping' },
+              { href: '/admin/users', label: 'Users' },
+            ]
+          : [];
 
   const cards =
     admin.role === 'marketer'
@@ -109,13 +112,17 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        <div className="mb-8 flex flex-wrap gap-3">
-          {nav.map((item) => (
-            <Link key={item.href} href={item.href}>
-              <Button variant="outline">{item.label}</Button>
-            </Link>
-          ))}
-        </div>
+        {admin.role === 'merchant' ? (
+          <MerchantNav merchantId={admin.id || admin._id} />
+        ) : (
+          <div className="mb-8 flex flex-wrap gap-3">
+            {nav.map((item) => (
+              <Link key={item.href} href={item.href}>
+                <Button variant="outline">{item.label}</Button>
+              </Link>
+            ))}
+          </div>
+        )}
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => (

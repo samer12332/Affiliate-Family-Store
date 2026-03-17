@@ -12,6 +12,7 @@ import { resolveColorHex } from "@/lib/color-swatches";
 
 interface Product {
   _id: string;
+  merchantId?: string;
   name: string;
   slug: string;
   description: string;
@@ -105,6 +106,8 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
 
     addItem({
       productId: product!._id,
+      merchantId: String(product!.merchantId || ""),
+      merchantName: product!.brand || "Merchant",
       productName: product!.name,
       productSlug: product!.slug,
       productImage: product!.images?.[0] || "",
@@ -112,6 +115,8 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       selectedSize: hasSizeOptions ? (sizeRangeLabelBySize[selectedSize] || selectedSize) : "Default",
       quantity,
       price: displayPrice,
+      merchantPrice: Number(product!.price || 0),
+      salePriceByMarketer: displayPrice,
       shippingFee: 0, // Will be calculated at checkout
     });
 

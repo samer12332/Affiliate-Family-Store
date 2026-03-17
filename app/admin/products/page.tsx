@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
@@ -43,26 +44,12 @@ export default function ProductsPage() {
               Products are now merchant-owned and only appear on that merchant&apos;s page.
             </p>
           </div>
-          <div className="flex flex-wrap justify-end gap-3">
-            <Link href="/admin/dashboard">
-              <Button variant="outline">Dashboard</Button>
-            </Link>
-            <Link href="/admin/shipping-systems">
-              <Button variant="outline">View shipping</Button>
-            </Link>
-            <Link href="/admin/shipping-systems/new">
-              <Button variant="outline">Create shipping</Button>
-            </Link>
-            <Link href="/admin/products/new">
-              <Button>Create new product</Button>
-            </Link>
-            {admin.role === 'merchant' && (admin.id || admin._id) && (
-              <Link href={`/merchant/${admin.id || admin._id}`}>
-                <Button variant="outline">Open merchant page</Button>
-              </Link>
-            )}
-          </div>
+          <Link href="/admin/products/new">
+            <Button>Create new product</Button>
+          </Link>
         </div>
+
+        {admin.role === 'merchant' && <MerchantNav merchantId={admin.id || admin._id} />}
 
         <div className="grid gap-4">
           {products.map((product) => (

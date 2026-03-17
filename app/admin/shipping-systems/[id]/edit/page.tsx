@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApi } from '@/hooks/useApi';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
@@ -93,6 +94,8 @@ export default function EditShippingSystemPage({ params }: { params: Promise<{ i
             <Button variant="outline">Back to shipping</Button>
           </Link>
         </div>
+
+        {admin.role === 'merchant' && <MerchantNav merchantId={admin.id || admin._id} />}
 
         <Card className="rounded-3xl p-6">
           <div className="space-y-4">

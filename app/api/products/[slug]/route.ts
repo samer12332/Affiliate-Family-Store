@@ -96,7 +96,9 @@ export async function PUT(
             .filter((entry: any) => entry.size && Number.isFinite(entry.minWeightKg) && Number.isFinite(entry.maxWeightKg))
         : [];
       update.sizeWeightChart = sizeWeightChart;
-      update.sizes = sizeWeightChart.map((entry: any) => entry.size);
+      update.sizes = Array.isArray(body.sizes)
+        ? body.sizes.map((value: any) => String(value).trim()).filter(Boolean)
+        : sizeWeightChart.map((entry: any) => entry.size);
     }
     if (body.shippingSystemId !== undefined) {
       const shippingSystem = await ShippingSystem.findById(body.shippingSystemId);

@@ -50,6 +50,31 @@ export default function NewProductPage() {
 
   if (isLoading || !token || !admin) return null;
 
+  const parseSizeLines = (value: string) => {
+    const sizeWeightChart: Array<{ size: string; minWeightKg: number; maxWeightKg: number }> = [];
+    const sizes: string[] = [];
+
+    value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const weighted = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
+        if (weighted) {
+          sizeWeightChart.push({
+            size: weighted[1].toUpperCase(),
+            minWeightKg: Number(weighted[2]),
+            maxWeightKg: Number(weighted[3]),
+          });
+          return;
+        }
+
+        sizes.push(line.toUpperCase());
+      });
+
+    return { sizeWeightChart, sizes };
+  };
+
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -78,21 +103,7 @@ export default function NewProductPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    const sizeWeightChart = formData.sizeWeightChart
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const match = line.match(/^([A-Za-z0-9]+)\s+(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
-        if (!match) return null;
-        return {
-          size: match[1].toUpperCase(),
-          minWeightKg: Number(match[2]),
-          maxWeightKg: Number(match[3]),
-        };
-      })
-      .filter(Boolean);
+    const { sizeWeightChart, sizes } = parseSizeLines(formData.sizeWeightChart);
 
     const uploadedImages = await Promise.all(selectedFiles.map(fileToDataUrl));
 
@@ -103,6 +114,7 @@ export default function NewProductPage() {
         formData.suggestedCommission === '' ? null : Number(formData.suggestedCommission),
       colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
       sizeWeightChart,
+      sizes,
       images: uploadedImages,
     });
 

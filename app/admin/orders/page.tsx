@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ORDER_STATUSES } from '@/lib/constants';
@@ -42,10 +43,14 @@ export default function OrdersPage() {
               Merchants control status changes. Marketers can track status and delivered dues.
             </p>
           </div>
-          <Link href="/admin/dashboard">
-            <Button variant="outline">Back to dashboard</Button>
-          </Link>
+          {admin.role !== 'merchant' && (
+            <Link href="/admin/dashboard">
+              <Button variant="outline">Back to dashboard</Button>
+            </Link>
+          )}
         </div>
+
+        {admin.role === 'merchant' && <MerchantNav merchantId={admin.id || admin._id} />}
 
         <Card className="mb-6 rounded-3xl p-4">
           <select

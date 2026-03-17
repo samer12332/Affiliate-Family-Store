@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -38,15 +39,12 @@ export default function ShippingSystemsPage() {
               This page only lists shipping systems. Creating and editing now happen on separate pages.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link href="/admin/dashboard">
-              <Button variant="outline">Back</Button>
-            </Link>
-            <Link href="/admin/shipping-systems/new">
-              <Button>Create shipping system</Button>
-            </Link>
-          </div>
+          <Link href="/admin/shipping-systems/new">
+            <Button>Create shipping system</Button>
+          </Link>
         </div>
+
+        {admin.role === 'merchant' && <MerchantNav merchantId={admin.id || admin._id} />}
 
         <div className="grid gap-4 md:grid-cols-2">
           {systems.map((system) => (
