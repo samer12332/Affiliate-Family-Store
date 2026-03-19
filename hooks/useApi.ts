@@ -12,9 +12,11 @@ export const useApi = () => {
   ): Promise<any> => {
     const authToken =
       typeof window !== "undefined" ? window.localStorage.getItem("admin-token") : null;
+    const method = String(options.method || "GET").toUpperCase();
+    const cacheMode = method === "GET" ? "default" : "no-store";
     const url = `${API_URL}${endpoint}`;
     const response = await fetch(url, {
-      cache: "no-store",
+      cache: cacheMode,
       credentials: "same-origin",
       headers: {
         ...(options.body ? { "Content-Type": "application/json" } : {}),

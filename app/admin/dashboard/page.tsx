@@ -11,6 +11,7 @@ import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-stat
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { isAdminRole, isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { useI18n } from '@/components/i18n/LanguageProvider';
 
 interface DashboardData {
   totalOrders: number;
@@ -20,11 +21,23 @@ interface DashboardData {
   totalMainMerchants?: number;
   totalShippingSystems: number;
   visibleDues?: number;
+  visibleDuesPending?: number;
+  visibleDuesReceived?: number;
   payableToMarketers?: number;
+  payableToMarketersPending?: number;
+  payableToMarketersReceived?: number;
   ownerCommissionDue?: number;
+  ownerCommissionDuePending?: number;
+  ownerCommissionDueReceived?: number;
   mainMerchantCommissionDue?: number;
+  mainMerchantCommissionDuePending?: number;
+  mainMerchantCommissionDueReceived?: number;
   totalCommissions?: number;
+  totalCommissionsPending?: number;
+  totalCommissionsReceived?: number;
   totalMainMerchantCommissions?: number;
+  totalMainMerchantCommissionsPending?: number;
+  totalMainMerchantCommissionsReceived?: number;
   managedSubmerchants?: number;
   managedMarketers?: number;
   submerchantDetails?: Array<any>;
@@ -36,6 +49,7 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const { admin, token, isLoading, logout } = useAdminAuth();
   const { get } = useApi();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -53,7 +67,7 @@ export default function DashboardPage() {
       return;
     }
 
-    Promise.all([get('/admin/dashboard'), get('/notifications?limit=1')])
+    Promise.all([get('/admin/dashboard'), get('/notifications?unreadCountOnly=true')])
       .then(([dashboard, notifications]) => {
         setData(dashboard);
         setUnreadNotifications(Number(notifications?.unreadTotal || 0));
@@ -68,58 +82,69 @@ export default function DashboardPage() {
     role === 'marketer'
       ? [
           { href: '/admin/orders', label: 'My orders' },
-          { href: '/merchant-directory', label: 'Submerchants' },
+          { href: '/merchant-directory', label: t('Submerchants') },
         ]
       : isAdminRole(role)
         ? [
-            { href: '/admin/users', label: 'Users' },
-            { href: '/admin/orders', label: 'All orders' },
-            { href: '/admin/products', label: 'Products' },
+            { href: '/admin/users', label: t('Users') },
+            { href: '/admin/orders', label: t('Orders') },
+            { href: '/admin/products', label: t('Products') },
             { href: '/admin/stocks', label: 'Stock' },
             { href: '/admin/shipping-systems', label: 'Shipping' },
-            { href: '/admin/commissions', label: 'Commissions' },
+            { href: '/admin/commissions', label: t('Commissions') },
             { href: '/admin/commission-complaints', label: 'Complaints' },
           ]
         : isMainMerchantRole(role)
           ? [
-              { href: '/admin/users', label: 'My users' },
-              { href: '/admin/orders', label: 'Orders' },
-              { href: '/admin/commissions', label: 'Commissions' },
+              { href: '/admin/users', label: t('Users') },
+              { href: '/admin/orders', label: t('Orders') },
+              { href: '/admin/commissions', label: t('Commissions') },
             ]
           : [];
 
   const cards =
     role === 'marketer'
       ? [
-          { label: 'My orders', value: data?.totalOrders ?? 0 },
-          { label: 'Delivered dues', value: `${Number(data?.visibleDues || 0).toFixed(2)} EGP` },
+          { label: t('My orders'), value: data?.totalOrders ?? 0 },
+          { label: 'Pending dues', value: `${Number(data?.visibleDuesPending ?? data?.visibleDues ?? 0).toFixed(2)} EGP` },
+          { label: 'Received dues', value: `${Number(data?.visibleDuesReceived || 0).toFixed(2)} EGP` },
           { label: 'Delivered', value: data?.statusCounts?.delivered ?? 0 },
         ]
       : isSubmerchantRole(role)
         ? [
-            { label: 'Submerchant orders', value: data?.totalOrders ?? 0 },
-            { label: 'My products', value: data?.totalProducts ?? 0 },
-            { label: 'Payable to marketers', value: `${Number(data?.payableToMarketers || 0).toFixed(2)} EGP` },
+            { label: t('Orders'), value: data?.totalOrders ?? 0 },
+            { label: t('Products'), value: data?.totalProducts ?? 0 },
+            { label: 'Payable to marketers (pending)', value: `${Number(data?.payableToMarketersPending ?? data?.payableToMarketers ?? 0).toFixed(2)} EGP` },
+            { label: 'Payable to marketers (received)', value: `${Number(data?.payableToMarketersReceived || 0).toFixed(2)} EGP` },
             {
-              label: 'Total system commissions',
-              value: `${(Number(data?.ownerCommissionDue || 0) + Number(data?.mainMerchantCommissionDue || 0)).toFixed(2)} EGP`,
+              label: 'System commissions (pending)',
+              value: `${(Number(data?.ownerCommissionDuePending ?? data?.ownerCommissionDue ?? 0) + Number(data?.mainMerchantCommissionDuePending ?? data?.mainMerchantCommissionDue ?? 0)).toFixed(2)} EGP`,
+            },
+            {
+              label: 'System commissions (received)',
+              value: `${(Number(data?.ownerCommissionDueReceived || 0) + Number(data?.mainMerchantCommissionDueReceived || 0)).toFixed(2)} EGP`,
             },
           ]
         : isMainMerchantRole(role)
           ? [
-              { label: 'Managed submerchants', value: data?.managedSubmerchants ?? 0 },
-              { label: 'Managed marketers', value: data?.managedMarketers ?? 0 },
-              { label: 'Orders', value: data?.totalOrders ?? 0 },
-              { label: 'Products', value: data?.totalProducts ?? 0 },
-              { label: 'My commissions', value: `${Number(data?.totalMainMerchantCommissions || 0).toFixed(2)} EGP` },
+              { label: t('Submerchants'), value: data?.managedSubmerchants ?? 0 },
+              { label: t('Marketers'), value: data?.managedMarketers ?? 0 },
+              { label: t('Orders'), value: data?.totalOrders ?? 0 },
+              { label: t('Products'), value: data?.totalProducts ?? 0 },
+              { label: 'My commissions (pending)', value: `${Number(data?.totalMainMerchantCommissionsPending ?? data?.totalMainMerchantCommissions ?? 0).toFixed(2)} EGP` },
+              { label: 'My commissions (received)', value: `${Number(data?.totalMainMerchantCommissionsReceived || 0).toFixed(2)} EGP` },
             ]
         : [
-            { label: 'Orders', value: data?.totalOrders ?? 0 },
-            { label: 'Products', value: data?.totalProducts ?? 0 },
-            { label: 'Submerchants', value: data?.totalMerchants ?? 0 },
-            { label: 'Marketers', value: data?.totalMarketers ?? 0 },
+            { label: t('Orders'), value: data?.totalOrders ?? 0 },
+            { label: t('Products'), value: data?.totalProducts ?? 0 },
+            { label: t('Submerchants'), value: data?.totalMerchants ?? 0 },
+            { label: t('Main merchants'), value: data?.totalMainMerchants ?? 0 },
+            { label: t('Marketers'), value: data?.totalMarketers ?? 0 },
             ...(isAdminRole(role)
-              ? [{ label: 'Owner commissions', value: `${Number(data?.totalCommissions || 0).toFixed(2)} EGP` }]
+              ? [
+                  { label: 'Owner commissions (pending)', value: `${Number(data?.totalCommissionsPending ?? data?.totalCommissions ?? 0).toFixed(2)} EGP` },
+                  { label: 'Owner commissions (received)', value: `${Number(data?.totalCommissionsReceived || 0).toFixed(2)} EGP` },
+                ]
               : []),
           ];
 
@@ -129,7 +154,7 @@ export default function DashboardPage() {
         <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-stone-200 bg-white/90 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-stone-500">{role.replace('_', ' ')}</p>
-            <h1 className="mt-2 text-3xl font-bold text-stone-900">Welcome, {admin.name}</h1>
+            <h1 className="mt-2 text-3xl font-bold text-stone-900">{t('Welcome,')} {admin.name}</h1>
             <p className="mt-1 text-sm text-stone-600">{admin.email}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -150,7 +175,7 @@ export default function DashboardPage() {
                 router.push('/admin/login');
               }}
             >
-              Logout
+              {t('Logout')}
             </Button>
           </div>
         </div>
@@ -239,4 +264,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 

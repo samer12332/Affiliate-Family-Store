@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { Heart, Truck, Award, Users } from 'lucide-react';
+import { LocalizedText } from '@/components/i18n/LocalizedText';
 
 export const metadata: Metadata = {
   title: 'About Us - FamilyStore',
@@ -19,10 +20,10 @@ export default function AboutPage() {
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h1 className="text-4xl sm:text-5xl font-bold text-foreground mb-4">
-              About FamilyStore
+              <LocalizedText text="About FamilyStore" />
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Quality clothing and accessories for families, delivered with care and excellence
+              <LocalizedText text="Quality clothing and accessories for families, delivered with care and excellence" />
             </p>
           </div>
         </div>
@@ -34,7 +35,7 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-16">
             <div>
               <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-6">
-                Our Story
+                <LocalizedText text="Our Story" />
               </h2>
               <p className="text-lg text-muted-foreground mb-4">
                 FamilyStore was founded with a simple mission: to make quality fashion accessible to families across Egypt. We believe that everyone deserves stylish and comfortable clothing at fair prices.
@@ -57,17 +58,17 @@ export default function AboutPage() {
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Our Core Values
+              <LocalizedText text="Our Core Values" />
             </h2>
             <p className="text-lg text-muted-foreground">
-              What drives everything we do
+              <LocalizedText text="What drives everything we do" />
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-card p-6 rounded-lg border border-border text-center">
               <Heart className="w-10 h-10 text-primary mx-auto mb-4" />
-              <h3 className="font-semibold text-foreground mb-2">Customer Care</h3>
+              <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Customer Care" /></h3>
               <p className="text-muted-foreground text-sm">
                 Your satisfaction is our priority. We're here to help with any questions.
               </p>
@@ -75,7 +76,7 @@ export default function AboutPage() {
 
             <div className="bg-card p-6 rounded-lg border border-border text-center">
               <Award className="w-10 h-10 text-primary mx-auto mb-4" />
-              <h3 className="font-semibold text-foreground mb-2">Quality</h3>
+              <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Quality" /></h3>
               <p className="text-muted-foreground text-sm">
                 We only offer authentic, high-quality products you can trust.
               </p>
@@ -83,7 +84,7 @@ export default function AboutPage() {
 
             <div className="bg-card p-6 rounded-lg border border-border text-center">
               <Truck className="w-10 h-10 text-primary mx-auto mb-4" />
-              <h3 className="font-semibold text-foreground mb-2">Fast Delivery</h3>
+              <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Fast Delivery" /></h3>
               <p className="text-muted-foreground text-sm">
                 Quick shipping across Egypt with reliable tracking and support.
               </p>
@@ -91,7 +92,7 @@ export default function AboutPage() {
 
             <div className="bg-card p-6 rounded-lg border border-border text-center">
               <Users className="w-10 h-10 text-primary mx-auto mb-4" />
-              <h3 className="font-semibold text-foreground mb-2">Community</h3>
+              <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Community" /></h3>
               <p className="text-muted-foreground text-sm">
                 Building a community of satisfied families across Egypt.
               </p>
@@ -104,7 +105,7 @@ export default function AboutPage() {
       <section className="py-16 sm:py-24">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-12 text-center">
-            Why Choose FamilyStore?
+            <LocalizedText text="Why Choose FamilyStore?" />
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
@@ -116,7 +117,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Wide Selection
+                  <LocalizedText text="Wide Selection" />
                 </h3>
                 <p className="text-muted-foreground">
                   Browse through our extensive collection of clothing, shoes, and accessories for the whole family.
@@ -132,7 +133,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Fair Prices
+                  <LocalizedText text="Fair Prices" />
                 </h3>
                 <p className="text-muted-foreground">
                   Quality products at prices that won't break the bank. Competitive rates across all categories.
@@ -148,7 +149,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Easy Returns
+                  <LocalizedText text="Easy Returns" />
                 </h3>
                 <p className="text-muted-foreground">
                   Not happy with your purchase? Return within 14 days for a full refund, no questions asked.
@@ -164,7 +165,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Expert Support
+                  <LocalizedText text="Expert Support" />
                 </h3>
                 <p className="text-muted-foreground">
                   Our friendly team is available to help you find the perfect fit and answer any questions.
@@ -179,13 +180,13 @@ export default function AboutPage() {
       <section className="py-16 sm:py-24 bg-primary/10">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-6">
-            Join Our Family
+            <LocalizedText text="Join Our Family" />
           </h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Start shopping today and experience the FamilyStore difference
+            <LocalizedText text="Start shopping today and experience the FamilyStore difference" />
           </p>
           <a href="/shop" className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-lg font-semibold">
-            Shop Now
+            <LocalizedText text="Shop Now" />
           </a>
         </div>
       </section>

@@ -142,13 +142,34 @@ export async function DELETE(
     if (!isValidObjectId(id)) {
       return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
     }
-    const user = await User.findById(id);
+    const actorRole = normalizeRole(auth.user.role);
+
+    if (auth.user._id.toString() === id) {
+      return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
+    }
+
+    const deleteQuery: Record<string, any> = {
+      _id: id,
+      isProtected: { $ne: true },
+    };
+
+    if (isMainMerchantRole(actorRole)) {
+      deleteQuery.mainMerchantId = auth.user._id;
+      deleteQuery.role = { $in: ['submerchant', 'merchant', 'marketer'] };
+    }
+
+    // Fast path: in the common valid case we delete in a single query.
+    const deletedUser: any = await User.findOneAndDelete(deleteQuery).select('_id').lean();
+    if (deletedUser) {
+      return NextResponse.json({ success: true });
+    }
+
+    // Fallback path: classify error for user-friendly messages.
+    const user: any = await User.findById(id).select('_id role mainMerchantId isProtected').lean();
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-
-    const actorRole = normalizeRole(auth.user.role);
-    const targetRole = normalizeRole(user.role);
+    const targetRole = normalizeRole(String(user.role || ''));
 
     if (user.isProtected) {
       return NextResponse.json({ error: 'Protected owner cannot be deleted' }, { status: 403 });
@@ -162,13 +183,7 @@ export async function DELETE(
         return NextResponse.json({ error: 'You can only delete your own submerchants and marketers' }, { status: 403 });
       }
     }
-
-    if (auth.user._id.toString() === user._id.toString()) {
-      return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
-    }
-
-    await User.findByIdAndDelete(id);
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
   } catch (error: any) {
     console.error('[v0] User delete API error:', error);
     return NextResponse.json(

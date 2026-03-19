@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useApi } from "./useApi";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 interface AuthUser {
   id: string;
@@ -31,98 +30,233 @@ const clearTokenCookie = () => {
   document.cookie = `${TOKEN_COOKIE_KEY}=; Path=/; SameSite=Lax; Max-Age=0`;
 };
 
+type AuthState = {
+  admin: AuthUser | null;
+  token: string | null;
+  isLoading: boolean;
+  error: string | null;
+  initialized: boolean;
+};
+
+let authState: AuthState = {
+  admin: null,
+  token: null,
+  isLoading: true,
+  error: null,
+  initialized: false,
+};
+
+const listeners = new Set<() => void>();
+let hydratePromise: Promise<void> | null = null;
+
+function notifyAuthListeners() {
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
+function setAuthState(partial: Partial<AuthState>) {
+  authState = { ...authState, ...partial };
+  notifyAuthListeners();
+}
+
+function clearAuthStorage() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  localStorage.removeItem(USER_STORAGE_KEY);
+  clearTokenCookie();
+}
+
+function readStoredUser() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+  if (!savedUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(savedUser) as AuthUser;
+  } catch {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    return null;
+  }
+}
+
+function initializeAuthFromStorage() {
+  if (authState.initialized || typeof window === "undefined") {
+    return;
+  }
+
+  const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+  const savedUser = readStoredUser();
+
+  if (savedToken) {
+    writeTokenCookie(savedToken);
+  }
+
+  setAuthState({
+    token: savedToken,
+    admin: savedUser,
+    isLoading: false,
+    initialized: true,
+  });
+}
+
+async function hydrateUserIfNeeded() {
+  if (!authState.token) {
+    setAuthState({ admin: null, error: null, isLoading: false });
+    return;
+  }
+
+  if (hydratePromise) {
+    return hydratePromise;
+  }
+
+  setAuthState({ isLoading: true });
+
+  hydratePromise = (async () => {
+    try {
+      const response = await fetch("/api/auth/me", {
+        method: "GET",
+        credentials: "same-origin",
+        headers: {
+          Authorization: `Bearer ${authState.token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      const user = data?.user as AuthUser | undefined;
+
+      if (!user) {
+        throw new Error("Invalid auth response");
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+      }
+
+      setAuthState({ admin: user, error: null });
+    } catch {
+      clearAuthStorage();
+      setAuthState({
+        token: null,
+        admin: null,
+        error: null,
+      });
+    } finally {
+      setAuthState({ isLoading: false });
+      hydratePromise = null;
+    }
+  })();
+
+  return hydratePromise;
+}
+
 export const useAdminAuth = () => {
-  const [admin, setAdmin] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { post, get } = useApi();
+  const snapshot = useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => authState,
+    () => authState
+  );
 
   useEffect(() => {
-    const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-    const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+    initializeAuthFromStorage();
 
-    if (savedToken) {
-      setToken(savedToken);
-      writeTokenCookie(savedToken);
-    }
-
-    if (savedUser) {
-      try {
-        setAdmin(JSON.parse(savedUser));
-      } catch {
-        localStorage.removeItem(USER_STORAGE_KEY);
+    const syncFromStorage = () => {
+      const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+      const admin = readStoredUser();
+      if (token) {
+        writeTokenCookie(token);
+      } else {
+        clearTokenCookie();
       }
-    }
+      setAuthState({ token, admin, initialized: true, isLoading: false });
+      void hydrateUserIfNeeded();
+    };
 
-    setIsLoading(false);
+    window.addEventListener(AUTH_UPDATED_EVENT, syncFromStorage);
+    window.addEventListener("storage", syncFromStorage);
+
+    return () => {
+      window.removeEventListener(AUTH_UPDATED_EVENT, syncFromStorage);
+      window.removeEventListener("storage", syncFromStorage);
+    };
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!snapshot.initialized) {
+      return;
+    }
+    void hydrateUserIfNeeded();
+  }, [snapshot.token, snapshot.initialized]);
 
-    const hydrateUser = async () => {
-      try {
-        const data = await get("/auth/me");
-        const user = data.user;
-        setAdmin(user);
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-      } catch {
-        logout();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    hydrateUser();
-  }, [token, get]);
-
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
-      setError(null);
-      setIsLoading(true);
+      setAuthState({ error: null, isLoading: true });
 
-      const data = await post("/auth/login", { email, password });
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(String(data?.error || `Request failed (${response.status})`));
+      }
+
       const { token: authToken, admin: adminData } = data;
 
-      setToken(authToken);
-      setAdmin(adminData);
-      localStorage.setItem(TOKEN_STORAGE_KEY, authToken);
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(adminData));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(TOKEN_STORAGE_KEY, authToken);
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(adminData));
+      }
       writeTokenCookie(authToken);
+      setAuthState({ token: authToken, admin: adminData, error: null });
       window.dispatchEvent(new Event(AUTH_UPDATED_EVENT));
 
       return { success: true, admin: adminData };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Login failed";
-      setError(errorMessage);
+      setAuthState({ error: errorMessage });
       return { success: false, error: errorMessage };
     } finally {
-      setIsLoading(false);
+      setAuthState({ isLoading: false });
     }
-  };
+  }, []);
 
-  const logout = () => {
-    setToken(null);
-    setAdmin(null);
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem(USER_STORAGE_KEY);
-    clearTokenCookie();
+  const logout = useCallback(() => {
+    clearAuthStorage();
+    setAuthState({ token: null, admin: null, error: null, isLoading: false });
     window.dispatchEvent(new Event(AUTH_UPDATED_EVENT));
-  };
+  }, []);
 
-  const getAuthHeader = () => {
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
+  const getAuthHeader = useCallback(() => {
+    return snapshot.token ? { Authorization: `Bearer ${snapshot.token}` } : {};
+  }, [snapshot.token]);
 
   return {
-    admin,
-    token,
-    isLoading,
-    error,
+    admin: snapshot.admin,
+    token: snapshot.token,
+    isLoading: snapshot.isLoading,
+    error: snapshot.error,
     login,
     logout,
     getAuthHeader,
-    isAuthenticated: () => token !== null,
+    isAuthenticated: () => snapshot.token !== null,
   };
 };

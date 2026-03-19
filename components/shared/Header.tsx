@@ -9,6 +9,7 @@ import { useApi } from "@/hooks/useApi";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { cn } from "@/lib/utils";
 import { SiteLogo } from "@/components/shared/SiteLogo";
+import { useI18n } from "@/components/i18n/LanguageProvider";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -18,6 +19,7 @@ export function Header() {
   const { admin, token, isLoading, logout } = useAdminAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useI18n();
   const isMarketerLoggedIn = !isLoading && !!token && admin?.role === "marketer";
 
   useEffect(() => {
@@ -26,17 +28,17 @@ export function Header() {
       return;
     }
 
-    get("/notifications?limit=1")
+    get("/notifications?unreadCountOnly=true")
       .then((res) => setUnreadNotifications(Number(res?.unreadTotal || 0)))
       .catch(() => setUnreadNotifications(0));
   }, [get, isMarketerLoggedIn]);
 
   const navLinks = [
-    { href: "/shop", label: "Shop" },
-    { href: "/categories/clothes", label: "Clothes" },
-    { href: "/categories/shoes", label: "Shoes" },
-    { href: "/about", label: "About" },
-    { href: "/contact", label: "Contact" },
+    { href: "/shop", label: t("Shop") },
+    { href: "/categories/clothes", label: t("Clothes") },
+    { href: "/categories/shoes", label: t("Shoes") },
+    { href: "/about", label: t("About") },
+    { href: "/contact", label: t("Contact") },
   ];
 
   const isActive = (href: string) =>
@@ -79,19 +81,19 @@ export function Header() {
                 }}
                 className="hidden sm:inline-flex rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
               >
-                Logout
+                {t("Logout")}
               </button>
             )}
             <button
               type="button"
               onClick={() => router.push("/shop?focusSearch=1")}
-              aria-label="Search products"
+              aria-label={t("Search products")}
               className="p-2 hover:bg-muted rounded-lg transition-colors"
             >
               <Search className="w-5 h-5 text-foreground" />
             </button>
             {isMarketerLoggedIn && (
-              <Link href="/admin/notifications" className="relative p-2" aria-label="Notifications">
+              <Link href="/admin/notifications" className="relative p-2" aria-label={t("Notifications")}>
                 <Bell className="w-5 h-5 text-foreground" />
                 {unreadNotifications > 0 && (
                   <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
@@ -148,3 +150,4 @@ export function Header() {
     </header>
   );
 }
+

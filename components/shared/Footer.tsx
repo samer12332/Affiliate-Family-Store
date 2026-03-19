@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { Mail, Phone, MapPin } from "lucide-react";
 import { SiteLogo } from "@/components/shared/SiteLogo";
+import { useI18n } from "@/components/i18n/LanguageProvider";
 
 export function Footer() {
+  const { t } = useI18n();
+
   return (
     <footer className="bg-secondary text-secondary-foreground py-12 mt-16">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -15,17 +18,17 @@ export function Footer() {
               <SiteLogo compact />
             </div>
             <p className="text-sm opacity-70">
-              Your trusted source for quality clothing, shoes, and accessories for the whole family.
+              {t("Your trusted source for quality clothing, shoes, and accessories for the whole family.")}
             </p>
           </div>
 
           {/* Shop */}
           <div>
-            <h4 className="font-semibold mb-4">Shop</h4>
+            <h4 className="font-semibold mb-4">{t("Shop")}</h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/shop" className="hover:opacity-100 opacity-70 transition-opacity">
-                  All Products
+                  {t("All Products")}
                 </Link>
               </li>
               <li>
@@ -33,7 +36,7 @@ export function Footer() {
                   href="/categories/clothes"
                   className="hover:opacity-100 opacity-70 transition-opacity"
                 >
-                  Clothes
+                  {t("Clothes")}
                 </Link>
               </li>
               <li>
@@ -41,7 +44,7 @@ export function Footer() {
                   href="/categories/shoes"
                   className="hover:opacity-100 opacity-70 transition-opacity"
                 >
-                  Shoes
+                  {t("Shoes")}
                 </Link>
               </li>
               <li>
@@ -49,7 +52,7 @@ export function Footer() {
                   href="/categories/others"
                   className="hover:opacity-100 opacity-70 transition-opacity"
                 >
-                  Accessories
+                  {t("Accessories")}
                 </Link>
               </li>
             </ul>
@@ -57,21 +60,21 @@ export function Footer() {
 
           {/* Support */}
           <div>
-            <h4 className="font-semibold mb-4">Support</h4>
+            <h4 className="font-semibold mb-4">{t("Support")}</h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/about" className="hover:opacity-100 opacity-70 transition-opacity">
-                  About Us
+                  {t("About Us")}
                 </Link>
               </li>
               <li>
                 <Link href="/contact" className="hover:opacity-100 opacity-70 transition-opacity">
-                  Contact
+                  {t("Contact")}
                 </Link>
               </li>
               <li>
                 <Link href="/faq" className="hover:opacity-100 opacity-70 transition-opacity">
-                  FAQ
+                  {t("FAQ")}
                 </Link>
               </li>
             </ul>
@@ -79,7 +82,7 @@ export function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-semibold mb-4">Contact</h4>
+            <h4 className="font-semibold mb-4">{t("Contact")}</h4>
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-2">
                 <Phone className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -99,13 +102,13 @@ export function Footer() {
 
         {/* Divider */}
         <div className="border-t border-secondary-foreground/20 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm">
-          <p>&copy; 2024 FamilyStore. All rights reserved.</p>
+          <p>&copy; 2024 FamilyStore. {t("All rights reserved.")}</p>
           <div className="flex gap-6">
             <Link href="#" className="hover:opacity-100 opacity-70 transition-opacity">
-              Privacy Policy
+              {t("Privacy Policy")}
             </Link>
             <Link href="#" className="hover:opacity-100 opacity-70 transition-opacity">
-              Terms of Service
+              {t("Terms of Service")}
             </Link>
           </div>
         </div>

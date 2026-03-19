@@ -50,6 +50,21 @@ export default function CommissionsPage() {
     return Array.from(map.values());
   }, [rows]);
 
+  const summary = useMemo(() => {
+    let pending = 0;
+    let received = 0;
+    for (const row of rows) {
+      const amount = Number(row?.amount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      if (row?.receiverMarkedReceivedAt) {
+        received += amount;
+      } else {
+        pending += amount;
+      }
+    }
+    return { pending, received };
+  }, [rows]);
+
   if (isLoading || !token || !admin) return null;
 
   const canView =
@@ -101,6 +116,17 @@ export default function CommissionsPage() {
         </div>
 
         {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <Card className="rounded-3xl border-stone-200 p-5">
+            <p className="text-sm text-stone-500">Pending commissions</p>
+            <p className="mt-2 text-2xl font-bold text-stone-900">{summary.pending.toFixed(2)} EGP</p>
+          </Card>
+          <Card className="rounded-3xl border-stone-200 p-5">
+            <p className="text-sm text-stone-500">Received commissions</p>
+            <p className="mt-2 text-2xl font-bold text-stone-900">{summary.received.toFixed(2)} EGP</p>
+          </Card>
+        </div>
 
         <Card className="rounded-3xl border-stone-200 p-6">
           {loadingRows ? (

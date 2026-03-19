@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -28,7 +28,7 @@ export default function MarketerDashboardPage() {
       return;
     }
 
-    Promise.all([get('/admin/dashboard'), get('/notifications?limit=1')])
+    Promise.all([get('/admin/dashboard'), get('/notifications?unreadCountOnly=true')])
       .then(([dashboard, notifications]) => {
         setData(dashboard);
         setUnreadNotifications(Number(notifications?.unreadTotal || 0));
@@ -66,16 +66,18 @@ export default function MarketerDashboardPage() {
             <p className="mt-3 text-3xl font-bold text-stone-900">{data?.totalOrders ?? 0}</p>
           </Card>
           <Card className="rounded-3xl border-stone-200 p-6">
-            <p className="text-sm text-stone-500">Visible dues</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{Number(data?.visibleDues || 0).toFixed(2)} EGP</p>
+            <p className="text-sm text-stone-500">Pending dues</p>
+            <p className="mt-3 text-3xl font-bold text-stone-900">
+              {Number(data?.visibleDuesPending ?? data?.visibleDues ?? 0).toFixed(2)} EGP
+            </p>
           </Card>
           <Card className="rounded-3xl border-stone-200 p-6">
-            <p className="text-sm text-stone-500">Pending</p>
+            <p className="text-sm text-stone-500">Received dues</p>
+            <p className="mt-3 text-3xl font-bold text-stone-900">{Number(data?.visibleDuesReceived || 0).toFixed(2)} EGP</p>
+          </Card>
+          <Card className="rounded-3xl border-stone-200 p-6">
+            <p className="text-sm text-stone-500">Pending orders</p>
             <p className="mt-3 text-3xl font-bold text-stone-900">{data?.statusCounts?.pending ?? 0}</p>
-          </Card>
-          <Card className="rounded-3xl border-stone-200 p-6">
-            <p className="text-sm text-stone-500">Delivered</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{data?.statusCounts?.delivered ?? 0}</p>
           </Card>
         </div>
 
@@ -104,4 +106,3 @@ export default function MarketerDashboardPage() {
     </div>
   );
 }
-

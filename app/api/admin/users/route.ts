@@ -82,7 +82,12 @@ export async function GET(request: NextRequest) {
     }
 
     const [users, total] = await Promise.all([
-      User.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip),
+      User.find(query)
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip)
+        .select('_id name email role active isProtected mainMerchantId createdByUserId merchantProfile marketerProfile createdAt')
+        .lean(),
       User.countDocuments(query),
     ]);
 

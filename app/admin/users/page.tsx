@@ -8,9 +8,11 @@ import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { isAdminRole, isMainMerchantRole, normalizeRole } from '@/lib/roles';
+import { useI18n } from '@/components/i18n/LanguageProvider';
 
 export default function UsersPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const { admin, token, isLoading } = useAdminAuth();
   const { get, post, request, delete: deleteRequest } = useApi();
   const [users, setUsers] = useState<any[]>([]);
@@ -90,11 +92,11 @@ export default function UsersPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Users</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Main merchants can add their own submerchants and marketers. Admin and owner can manage all users.
+              {t('Main merchants can add their own submerchants and marketers. Admin and owner can manage all users.')}
             </p>
           </div>
           <Link href="/admin/dashboard">
-            <Button variant="outline">Back</Button>
+            <Button variant="outline">{t('Back')}</Button>
           </Link>
         </div>
 
@@ -121,7 +123,7 @@ export default function UsersPage() {
                 ))}
               </select>
             )}
-            <Button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create user'}</Button>
+            <Button type="submit" disabled={saving}>{saving ? t('Creating...') : t('Create user')}</Button>
           </form>
           {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
         </Card>
@@ -147,7 +149,7 @@ export default function UsersPage() {
                         setUsers((prev) => prev.map((entry) => (entry._id === user._id ? data.user : entry)));
                       }}
                     >
-                      {user.active ? 'Deactivate' : 'Activate'}
+                      {t(user.active ? 'Deactivate' : 'Activate')}
                     </Button>
                   )}
                   {!user.isProtected && user._id !== (admin.id || admin._id) && (
@@ -162,17 +164,23 @@ export default function UsersPage() {
                         try {
                           setError('');
                           setDeletingId(user._id);
-                          await deleteRequest(`/admin/users/${user._id}`);
                           setUsers((prev) => prev.filter((entry) => entry._id !== user._id));
+                          await deleteRequest(`/admin/users/${user._id}`);
                         } catch (deleteError) {
                           setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete user');
+                          try {
+                            const data = await get('/admin/users?limit=200');
+                            setUsers(data.users || []);
+                          } catch {
+                            // Keep optimistic state if refetch fails; error banner is already shown.
+                          }
                         } finally {
                           setDeletingId(null);
                         }
                       }}
                       disabled={deletingId === user._id}
                     >
-                      {deletingId === user._id ? 'Deleting...' : 'Delete'}
+                      {deletingId === user._id ? t('Deleting...') : t('Delete')}
                     </Button>
                   )}
                 </div>

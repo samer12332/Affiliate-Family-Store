@@ -96,6 +96,9 @@ export default function CommissionComplaintsPage() {
                   <p className="mt-1 text-xs text-stone-500">
                     Complainant: {item.complainant?.name || 'N/A'} ({item.complainant?.email || 'N/A'})
                   </p>
+                  <p className="mt-1 text-xs text-stone-500">
+                    WhatsApp: {item.whatsappNumber || 'N/A'}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {['open', 'in_review', 'resolved', 'rejected'].map((status) => (
                       <Button

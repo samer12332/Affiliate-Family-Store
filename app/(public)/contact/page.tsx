@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { Button } from '@/components/ui/button';
 import { Mail, Phone, MapPin, Clock } from 'lucide-react';
 import { ContactForm } from '@/components/forms/ContactForm';
+import { LocalizedText } from '@/components/i18n/LocalizedText';
 
 export const metadata: Metadata = {
   title: 'Contact Us - FamilyStore',
@@ -21,10 +22,10 @@ export default function ContactPage() {
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h1 className="text-4xl sm:text-5xl font-bold text-foreground mb-4">
-              Contact Us
+              <LocalizedText text="Contact Us" />
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              We would love to hear from you. Send us a message and we'll respond as soon as possible.
+              <LocalizedText text="We would love to hear from you. Send us a message and we'll respond as soon as possible." />
             </p>
           </div>
         </div>
@@ -37,7 +38,7 @@ export default function ContactPage() {
             {/* Contact Info */}
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-8">
-                Get in Touch
+                <LocalizedText text="Get in Touch" />
               </h2>
 
               <div className="space-y-8">
@@ -46,7 +47,7 @@ export default function ContactPage() {
                     <Phone className="w-6 h-6 text-primary mt-1" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground mb-1">Phone</h3>
+                    <h3 className="font-semibold text-foreground mb-1"><LocalizedText text="Phone" /></h3>
                     <a
                       href="https://wa.me/201017306593?text=Hello%20I%20want%20to%20ask%20about%20FamilyStore"
                       target="_blank"
@@ -63,7 +64,7 @@ export default function ContactPage() {
                     <Mail className="w-6 h-6 text-primary mt-1" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground mb-1">Email</h3>
+                    <h3 className="font-semibold text-foreground mb-1"><LocalizedText text="Email" /></h3>
                     <a href="mailto:sameryousry44@gmail.com" className="text-muted-foreground hover:text-primary">
                       sameryousry44@gmail.com
                     </a>
@@ -75,7 +76,7 @@ export default function ContactPage() {
                     <MapPin className="w-6 h-6 text-primary mt-1" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground mb-1">Address</h3>
+                    <h3 className="font-semibold text-foreground mb-1"><LocalizedText text="Address" /></h3>
                     <p className="text-muted-foreground">
                       Cairo, Egypt
                     </p>
@@ -87,7 +88,7 @@ export default function ContactPage() {
                     <Clock className="w-6 h-6 text-primary mt-1" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground mb-1">Working Hours</h3>
+                    <h3 className="font-semibold text-foreground mb-1"><LocalizedText text="Working Hours" /></h3>
                     <p className="text-muted-foreground">
                       24/7
                     </p>
@@ -109,13 +110,13 @@ export default function ContactPage() {
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Frequently Asked Questions
+              <LocalizedText text="Frequently Asked Questions" />
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Find answers to common questions
+              <LocalizedText text="Find answers to common questions" />
             </p>
             <Button asChild>
-              <a href="/faq">View All FAQs</a>
+              <a href="/faq"><LocalizedText text="View All FAQs" /></a>
             </Button>
           </div>
         </div>

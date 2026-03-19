@@ -314,6 +314,7 @@ const commissionComplaintSchema = new mongoose.Schema(
     complainantUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     complainantRole: { type: String, required: true },
     reportedAgainstRole: { type: String, default: '' },
+    whatsappNumber: { type: String, required: true, trim: true, maxlength: 30 },
     message: { type: String, required: true, trim: true },
     status: { type: String, enum: ['open', 'in_review', 'resolved', 'rejected'], default: 'open', index: true },
     reviewedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -324,6 +325,7 @@ const commissionComplaintSchema = new mongoose.Schema(
 );
 
 commissionComplaintSchema.index({ status: 1, createdAt: -1 });
+commissionComplaintSchema.index({ complainantUserId: 1, createdAt: -1 });
 
 const existingUserModel = mongoose.models.User as mongoose.Model<any> | undefined;
 if (existingUserModel) {
@@ -348,6 +350,14 @@ if (existingCommissionModel) {
   const hasOwnerSettlementPath = Boolean(existingCommissionModel.schema.path('ownerSettlement'));
   if (!hasMainMerchantAmountPath || !hasOwnerSettlementPath) {
     mongoose.deleteModel('Commission');
+  }
+}
+
+const existingCommissionComplaintModel = mongoose.models.CommissionComplaint as mongoose.Model<any> | undefined;
+if (existingCommissionComplaintModel) {
+  const hasWhatsappNumberPath = Boolean(existingCommissionComplaintModel.schema.path('whatsappNumber'));
+  if (!hasWhatsappNumberPath) {
+    mongoose.deleteModel('CommissionComplaint');
   }
 }
 

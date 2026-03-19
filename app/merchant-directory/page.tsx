@@ -14,6 +14,10 @@ import { Input } from '@/components/ui/input';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { toast } from 'sonner';
 
+const INITIAL_PRODUCTS_LIMIT = 80;
+const INITIAL_VISIBLE_PRODUCTS = 24;
+const LOAD_MORE_STEP = 24;
+
 export default function MerchantDirectoryPage() {
   const router = useRouter();
   const { admin, token, isLoading } = useAdminAuth();
@@ -24,6 +28,7 @@ export default function MerchantDirectoryPage() {
   const [merchantFilter, setMerchantFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_PRODUCTS);
 
   useEffect(() => {
     if (isLoading) return;
@@ -37,15 +42,22 @@ export default function MerchantDirectoryPage() {
       return;
     }
 
+    let cancelled = false;
+
     Promise.all([
       get('/admin/users?role=submerchant&limit=200'),
-      get('/products?limit=200'),
+      get(`/products?limit=${INITIAL_PRODUCTS_LIMIT}&fieldset=marketplace`),
     ])
       .then(([usersRes, productsRes]) => {
+        if (cancelled) return;
         setMerchants(usersRes.users || []);
         setProducts(productsRes.products || []);
       })
       .catch((error) => console.error('[v0] Failed to load marketer marketplace', error));
+
+    return () => {
+      cancelled = true;
+    };
   }, [admin?.role, get, isLoading, router, token]);
 
   const dedupedMerchants = useMemo(() => {
@@ -113,7 +125,17 @@ export default function MerchantDirectoryPage() {
     });
   }, [categoryFilter, merchantFilter, merchantNameMap, products, search]);
 
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_PRODUCTS);
+  }, [merchantFilter, categoryFilter, search]);
+
+  const visibleProducts = useMemo(
+    () => filteredProducts.slice(0, visibleCount),
+    [filteredProducts, visibleCount]
+  );
+
   if (isLoading || !token || !admin) return null;
+  const totalCartItems = getTotalItems();
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8f5ef,#f3efe8_45%,#faf8f4)]">
@@ -137,7 +159,7 @@ export default function MerchantDirectoryPage() {
               <Link href="/cart">
                 <Button className="gap-2">
                   <ShoppingCart className="h-4 w-4" />
-                  Cart ({getTotalItems()})
+                  Cart ({totalCartItems})
                 </Button>
               </Link>
             </div>
@@ -176,7 +198,7 @@ export default function MerchantDirectoryPage() {
         </Card>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {filteredProducts.map((product) => {
+          {visibleProducts.map((product) => {
             const merchantName = merchantNameMap.get(product.merchantId) || 'Merchant';
             const merchantPrice = Number(product.merchantPrice || product.price || 0);
             return (
@@ -252,8 +274,15 @@ export default function MerchantDirectoryPage() {
             );
           })}
         </div>
+
+        {filteredProducts.length > visibleCount && (
+          <div className="mt-8 flex justify-center">
+            <Button variant="outline" onClick={() => setVisibleCount((prev) => prev + LOAD_MORE_STEP)}>
+              Load more ({filteredProducts.length - visibleCount} remaining)
+            </Button>
+          </div>
+        )}
       </main>
     </div>
   );
 }
-

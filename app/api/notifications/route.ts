@@ -14,7 +14,13 @@ export async function GET(request: NextRequest) {
     const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
+    const unreadCountOnly = searchParams.get('unreadCountOnly') === 'true';
     const skip = (page - 1) * limit;
+
+    if (unreadCountOnly) {
+      const unreadTotal = await Notification.countDocuments({ userId: auth.user._id, read: false });
+      return NextResponse.json({ unreadTotal });
+    }
 
     const query: any = { userId: auth.user._id };
     if (unreadOnly) query.read = false;

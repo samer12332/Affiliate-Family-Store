@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
     const gender = searchParams.get('gender');
     const search = safeTrim(searchParams.get('search') || '', 120);
     const merchantIdParam = searchParams.get('merchantId');
+    const fieldset = String(searchParams.get('fieldset') || '').trim();
     const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
     const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
@@ -104,8 +105,18 @@ export async function GET(request: NextRequest) {
       query.merchantId = { $in: submerchantIds };
     }
 
+    const projection =
+      fieldset === 'marketplace'
+        ? '_id merchantId name slug description merchantPrice price suggestedCommission images shippingSystemId stock category'
+        : undefined;
+
+    const productsQuery = Product.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
+    if (projection) {
+      productsQuery.select(projection);
+    }
+
     const [products, total] = await Promise.all([
-      Product.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip),
+      productsQuery.lean(),
       Product.countDocuments(query),
     ]);
 

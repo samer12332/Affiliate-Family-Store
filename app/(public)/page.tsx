@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { FeaturedProducts } from "@/components/sections/FeaturedProducts";
 import { ArrowRight } from "lucide-react";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 
 export const metadata: Metadata = {
   title: "FamilyStore - Quality Clothing & Accessories",
@@ -26,10 +27,10 @@ export default function Home() {
             <div className="flex flex-col gap-6">
               <div>
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground text-balance mb-4">
-                  Quality Clothing & Accessories for Your Family
+                  <LocalizedText text="Quality Clothing & Accessories for Your Family" />
                 </h1>
                 <p className="text-lg text-muted-foreground text-pretty">
-                  Discover our curated collection of stylish and comfortable clothing, shoes, and accessories for men, women, and children.
+                  <LocalizedText text="Discover our curated collection of stylish and comfortable clothing, shoes, and accessories for men, women, and children." />
                 </p>
               </div>
 
@@ -40,7 +41,7 @@ export default function Home() {
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   <Link href="/shop">
-                    Shop Now
+                    <LocalizedText text="Shop Now" />
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Link>
                 </Button>
@@ -50,22 +51,22 @@ export default function Home() {
                   variant="outline"
                   className="border-primary text-primary hover:bg-primary/10"
                 >
-                  <Link href="/about">Learn More</Link>
+                  <Link href="/about"><LocalizedText text="Learn More" /></Link>
                 </Button>
               </div>
 
               <div className="grid grid-cols-3 gap-4 pt-4">
                 <div>
                   <p className="text-2xl font-bold text-primary">1000+</p>
-                  <p className="text-sm text-muted-foreground">Products</p>
+                  <p className="text-sm text-muted-foreground"><LocalizedText text="Products" /></p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-primary">24/7</p>
-                  <p className="text-sm text-muted-foreground">Support</p>
+                  <p className="text-sm text-muted-foreground"><LocalizedText text="Support" /></p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-primary">Fast</p>
-                  <p className="text-sm text-muted-foreground">Delivery</p>
+                  <p className="text-sm text-muted-foreground"><LocalizedText text="Fast Delivery" /></p>
                 </div>
               </div>
             </div>
@@ -76,7 +77,7 @@ export default function Home() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
                     <div className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm mx-auto mb-4"></div>
-                    <p className="text-white/60">Featured Product</p>
+                    <p className="text-white/60"><LocalizedText text="Featured Products" /></p>
                   </div>
                 </div>
               </div>
@@ -90,10 +91,10 @@ export default function Home() {
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Shop by Category
+              <LocalizedText text="Shop by Category" />
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Browse our wide selection of products across different categories
+              <LocalizedText text="Browse our wide selection of products across different categories" />
             </p>
           </div>
 
@@ -106,8 +107,8 @@ export default function Home() {
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 <div className="absolute inset-0 flex items-center justify-center flex-col gap-3">
-                  <h3 className="text-2xl font-bold text-foreground">{category}</h3>
-                  <p className="text-sm text-muted-foreground">Browse Collection</p>
+                  <h3 className="text-2xl font-bold text-foreground"><LocalizedText text={category} /></h3>
+                  <p className="text-sm text-muted-foreground"><LocalizedText text="Browse Collection" /></p>
                 </div>
               </Link>
             ))}
@@ -121,16 +122,16 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-16 sm:py-24 bg-accent text-accent-foreground">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Special Offers</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4"><LocalizedText text="Special Offers" /></h2>
           <p className="text-lg mb-8 opacity-90 max-w-2xl mx-auto">
-            Subscribe to our newsletter and get exclusive deals, new arrivals, and special offers delivered to your inbox.
+            <LocalizedText text="Subscribe to our newsletter and get exclusive deals, new arrivals, and special offers delivered to your inbox." />
           </p>
           <Button
             asChild
             size="lg"
             className="bg-accent-foreground text-accent hover:bg-accent-foreground/90"
           >
-            <Link href="/contact">Get in Touch</Link>
+            <Link href="/contact"><LocalizedText text="Get in Touch" /></Link>
           </Button>
         </div>
       </section>

@@ -6,6 +6,10 @@ import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, nor
 import { isValidObjectId, parsePositiveInt, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
+const COMPLAINT_COOLDOWN_DAYS = 5;
+const COMPLAINT_COOLDOWN_MS = COMPLAINT_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+const WHATSAPP_REGEX = /^\+?[0-9][0-9\s-]{7,19}$/;
+
 function getSettlementField(channel: 'owner' | 'main_merchant' | 'marketer') {
   if (channel === 'owner') return 'ownerSettlement';
   if (channel === 'main_merchant') return 'mainMerchantSettlement';
@@ -80,8 +84,15 @@ export async function POST(request: NextRequest) {
     const orderId = String(body?.orderId || '').trim();
     const channel = String(body?.channel || '') as 'owner' | 'main_merchant' | 'marketer';
     const message = safeTrim(body?.message, 2000);
-    if (!orderId || !['owner', 'main_merchant', 'marketer'].includes(channel) || !message) {
-      return NextResponse.json({ error: 'orderId, channel and message are required' }, { status: 400 });
+    const whatsappNumber = safeTrim(body?.whatsappNumber, 30);
+    if (!orderId || !['owner', 'main_merchant', 'marketer'].includes(channel) || !message || !whatsappNumber) {
+      return NextResponse.json({ error: 'orderId, channel, message and whatsappNumber are required' }, { status: 400 });
+    }
+    if (!WHATSAPP_REGEX.test(whatsappNumber)) {
+      return NextResponse.json(
+        { error: 'Please provide a valid WhatsApp number (digits with optional +, spaces, or dashes).' },
+        { status: 400 }
+      );
     }
     if (!isValidObjectId(orderId)) {
       return NextResponse.json({ error: 'Invalid order reference' }, { status: 400 });
@@ -125,6 +136,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment already marked as received for this channel' }, { status: 400 });
     }
 
+    const latestComplaint = await CommissionComplaint.findOne({ complainantUserId: auth.user._id })
+      .sort({ createdAt: -1 })
+      .select('createdAt');
+    if (latestComplaint?.createdAt) {
+      const nextAllowedAt = new Date(latestComplaint.createdAt).getTime() + COMPLAINT_COOLDOWN_MS;
+      if (Date.now() < nextAllowedAt) {
+        return NextResponse.json(
+          {
+            error: `You can submit a new complaint after ${new Date(nextAllowedAt).toISOString()}. Cooldown is ${COMPLAINT_COOLDOWN_DAYS} days.`,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
     const reportedAgainstRole = String(settlement?.senderRole || '');
     const complaint = await CommissionComplaint.create({
       orderId: order._id,
@@ -132,6 +158,7 @@ export async function POST(request: NextRequest) {
       complainantUserId: auth.user._id,
       complainantRole: actorRole,
       reportedAgainstRole,
+      whatsappNumber,
       message,
       status: 'open',
     });

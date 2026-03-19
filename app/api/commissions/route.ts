@@ -75,7 +75,9 @@ export async function GET(request: NextRequest) {
           canMarkPaid: isActorSubmerchant || isActorMainMerchant || isActorOwner,
           canMarkReceived: isActorMarketer,
         },
-      ].filter((entry) => entry.amount > 0);
+      ]
+        .filter((entry) => entry.amount > 0)
+        .filter((entry) => (isMarketerRole(actorRole) ? entry.channel === 'marketer' : true));
 
       for (const channel of channels) {
         const senderPaid = Boolean(channel.settlement?.senderMarkedPaidAt);

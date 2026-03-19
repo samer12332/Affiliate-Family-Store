@@ -33,6 +33,120 @@ async function getOrderStatusCounts(orderQuery: Record<string, any>) {
   return statusCounts;
 }
 
+async function getCommissionSettlementSummary(orderQuery: Record<string, any>) {
+  const rows = await Order.aggregate([
+    { $match: { ...orderQuery, status: 'delivered' } },
+    {
+      $lookup: {
+        from: 'commissions',
+        localField: '_id',
+        foreignField: 'orderId',
+        as: 'commission',
+      },
+    },
+    { $unwind: { path: '$commission', preserveNullAndEmptyArrays: false } },
+    {
+      $group: {
+        _id: null,
+        ownerPending: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.ownerAmount', 0] },
+                  { $eq: [{ $ifNull: ['$commission.ownerSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.ownerAmount',
+              0,
+            ],
+          },
+        },
+        ownerReceived: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.ownerAmount', 0] },
+                  { $ne: [{ $ifNull: ['$commission.ownerSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.ownerAmount',
+              0,
+            ],
+          },
+        },
+        mainMerchantPending: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.mainMerchantAmount', 0] },
+                  { $eq: [{ $ifNull: ['$commission.mainMerchantSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.mainMerchantAmount',
+              0,
+            ],
+          },
+        },
+        mainMerchantReceived: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.mainMerchantAmount', 0] },
+                  { $ne: [{ $ifNull: ['$commission.mainMerchantSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.mainMerchantAmount',
+              0,
+            ],
+          },
+        },
+        marketerPending: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.marketerAmount', 0] },
+                  { $eq: [{ $ifNull: ['$commission.marketerSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.marketerAmount',
+              0,
+            ],
+          },
+        },
+        marketerReceived: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.marketerAmount', 0] },
+                  { $ne: [{ $ifNull: ['$commission.marketerSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.marketerAmount',
+              0,
+            ],
+          },
+        },
+      },
+    },
+  ]);
+
+  const totals = rows?.[0] || {};
+  return {
+    ownerPending: Number(totals.ownerPending || 0),
+    ownerReceived: Number(totals.ownerReceived || 0),
+    mainMerchantPending: Number(totals.mainMerchantPending || 0),
+    mainMerchantReceived: Number(totals.mainMerchantReceived || 0),
+    marketerPending: Number(totals.marketerPending || 0),
+    marketerReceived: Number(totals.marketerReceived || 0),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
@@ -74,12 +188,16 @@ export async function GET(request: NextRequest) {
           ? { merchantId: { $in: managedSubmerchantIds } }
           : {};
 
+    const shouldLoadProductStats = !isMarketerRole(actorRole);
+
     const [orders, products, totalOrders, totalProducts, totalShippingSystems, statusCounts] = await Promise.all([
-      Order.find(queryForRole).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_ORDERS_LIMIT).lean(),
-      Product.find(productQuery).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_PRODUCTS_LIMIT).lean(),
+      Order.find(queryForRole).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_ORDERS_LIMIT).select('_id orderNumber status customer.name merchantId marketerId createdAt').lean(),
+      shouldLoadProductStats
+        ? Product.find(productQuery).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_PRODUCTS_LIMIT).select('_id name category merchantId createdAt').lean()
+        : Promise.resolve([]),
       Order.countDocuments(queryForRole),
-      Product.countDocuments(productQuery),
-      ShippingSystem.countDocuments(shippingQuery),
+      shouldLoadProductStats ? Product.countDocuments(productQuery) : Promise.resolve(0),
+      shouldLoadProductStats ? ShippingSystem.countDocuments(shippingQuery) : Promise.resolve(0),
       getOrderStatusCounts(queryForRole),
     ]);
 
@@ -104,17 +222,8 @@ export async function GET(request: NextRequest) {
     };
 
     if (isMarketerRole(actorRole)) {
-      const deliveredRecentOrderIds = orders
-        .filter((order: any) => order.status === 'delivered')
-        .map((order: any) => order._id);
-
-      const [marketerCommissions, visibleSubmerchants] = await Promise.all([
-        deliveredRecentOrderIds.length
-          ? Commission.aggregate([
-              { $match: { orderId: { $in: deliveredRecentOrderIds } } },
-              { $group: { _id: null, total: { $sum: '$marketerAmount' } } },
-            ])
-          : Promise.resolve([]),
+      const [settlementTotals, visibleSubmerchants] = await Promise.all([
+        getCommissionSettlementSummary(queryForRole),
         auth.user.mainMerchantId
           ? User.countDocuments({ role: SUBMERCHANT_ROLE_FILTER, mainMerchantId: auth.user.mainMerchantId, active: true })
           : User.countDocuments({ role: SUBMERCHANT_ROLE_FILTER, active: true }),
@@ -123,31 +232,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ...baseStats,
         visibleSubmerchants,
-        visibleDues: Number(marketerCommissions?.[0]?.total || 0),
+        visibleDues: settlementTotals.marketerPending,
+        visibleDuesPending: settlementTotals.marketerPending,
+        visibleDuesReceived: settlementTotals.marketerReceived,
       });
     }
 
     if (isSubmerchantRole(actorRole)) {
-      const merchantOrderIds = orders.map((order: any) => order._id);
-      const merchantCommissionTotals = merchantOrderIds.length
-        ? await Commission.aggregate([
-            { $match: { orderId: { $in: merchantOrderIds } } },
-            {
-              $group: {
-                _id: null,
-                payableToMarketers: { $sum: '$marketerAmount' },
-                ownerCommissionDue: { $sum: '$ownerAmount' },
-                mainMerchantCommissionDue: { $sum: '$mainMerchantAmount' },
-              },
-            },
-          ])
-        : [];
-      const totals = merchantCommissionTotals?.[0] || {};
+      const totals = await getCommissionSettlementSummary(queryForRole);
       return NextResponse.json({
         ...baseStats,
-        payableToMarketers: Number(totals.payableToMarketers || 0),
-        ownerCommissionDue: Number(totals.ownerCommissionDue || 0),
-        mainMerchantCommissionDue: Number(totals.mainMerchantCommissionDue || 0),
+        payableToMarketers: totals.marketerPending,
+        payableToMarketersPending: totals.marketerPending,
+        payableToMarketersReceived: totals.marketerReceived,
+        ownerCommissionDue: totals.ownerPending,
+        ownerCommissionDuePending: totals.ownerPending,
+        ownerCommissionDueReceived: totals.ownerReceived,
+        mainMerchantCommissionDue: totals.mainMerchantPending,
+        mainMerchantCommissionDuePending: totals.mainMerchantPending,
+        mainMerchantCommissionDueReceived: totals.mainMerchantReceived,
       });
     }
 
@@ -207,19 +310,15 @@ export async function GET(request: NextRequest) {
         };
       });
 
+      const settlementTotals = await getCommissionSettlementSummary(queryForRole);
       return NextResponse.json({
         ...baseStats,
         submerchantDetails: details,
         managedSubmerchants: details.length,
         managedMarketers: await User.countDocuments({ role: 'marketer', mainMerchantId: auth.user._id }),
-        totalMainMerchantCommissions: await (async () => {
-          const managedOrderIds = await Order.find({ merchantId: { $in: managedSubmerchantIds } }).distinct('_id');
-          const totals = await Commission.aggregate([
-            { $match: { orderId: { $in: managedOrderIds } } },
-            { $group: { _id: null, total: { $sum: '$mainMerchantAmount' } } },
-          ]);
-          return Number(totals?.[0]?.total || 0);
-        })(),
+        totalMainMerchantCommissions: settlementTotals.mainMerchantPending,
+        totalMainMerchantCommissionsPending: settlementTotals.mainMerchantPending,
+        totalMainMerchantCommissionsReceived: settlementTotals.mainMerchantReceived,
         mainMerchantCommissions: await (async () => {
           const managedOrders = await Order.find({ merchantId: { $in: managedSubmerchantIds } })
             .sort({ createdAt: -1 })
@@ -231,6 +330,7 @@ export async function GET(request: NextRequest) {
             .where('orderId')
             .in(managedOrderIds)
             .sort({ createdAt: -1 })
+            .select('orderId mainMerchantAmount status createdAt')
             .lean();
           const submerchantIds = [
             ...new Set(managedOrders.map((entry: any) => entry.merchantId?.toString?.()).filter(Boolean)),
@@ -261,7 +361,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const commissions = await Commission.find({}).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_COMMISSIONS_LIMIT).lean();
+    const commissions = await Commission.find({}).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_COMMISSIONS_LIMIT).select('orderId ownerAmount status createdAt').lean();
     const commissionOrderIds = commissions.map((item: any) => item.orderId).filter(Boolean);
     const commissionOrders = await Order.find({ _id: { $in: commissionOrderIds } })
       .select('_id orderNumber merchantId marketerId')
@@ -288,9 +388,12 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const settlementTotals = await getCommissionSettlementSummary(queryForRole);
     return NextResponse.json({
       ...baseStats,
-      totalCommissions: commissions.reduce((sum: number, item: any) => sum + Number(item.ownerAmount || 0), 0),
+      totalCommissions: settlementTotals.ownerPending,
+      totalCommissionsPending: settlementTotals.ownerPending,
+      totalCommissionsReceived: settlementTotals.ownerReceived,
       commissions: commissionBreakdown,
     });
   } catch (error: any) {

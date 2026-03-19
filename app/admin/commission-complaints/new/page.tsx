@@ -15,6 +15,7 @@ function NewCommissionComplaintPageContent() {
   const { admin, token, isLoading } = useAdminAuth();
   const { post } = useApi();
   const [message, setMessage] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -61,6 +62,16 @@ function NewCommissionComplaintPageContent() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">WhatsApp number</label>
+              <input
+                value={whatsappNumber}
+                onChange={(event) => setWhatsappNumber(event.target.value)}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                placeholder="+201001234567"
+              />
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Complaint details</label>
               <textarea
                 value={message}
@@ -82,6 +93,10 @@ function NewCommissionComplaintPageContent() {
                     setError('Missing order/channel information.');
                     return;
                   }
+                  if (!whatsappNumber.trim()) {
+                    setError('Please provide your WhatsApp number.');
+                    return;
+                  }
                   if (!message.trim()) {
                     setError('Please provide complaint details.');
                     return;
@@ -89,6 +104,7 @@ function NewCommissionComplaintPageContent() {
                   await post('/commission-complaints', {
                     orderId,
                     channel,
+                    whatsappNumber,
                     message,
                   });
                   router.push('/admin/commissions');

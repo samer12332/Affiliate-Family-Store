@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Spinner } from "@/components/ui/spinner";
 import { useApi } from "@/hooks/useApi";
+import { useI18n } from "@/components/i18n/LanguageProvider";
 
 interface Product {
   _id: string;
@@ -19,6 +20,7 @@ interface Product {
 }
 
 export function FeaturedProducts() {
+  const { t } = useI18n();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function FeaturedProducts() {
         setProducts(Array.isArray(data.products) ? data.products : []);
       } catch (err) {
         console.error("[v0] Error fetching featured products:", err);
-        setError("Unable to load products. Please try again later.");
+        setError(t("Unable to load products. Please try again later."));
         setProducts([]); // Set empty array on error
       } finally {
         setLoading(false);
@@ -49,7 +51,7 @@ export function FeaturedProducts() {
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Featured Products
+              {t("Featured Products")}
             </h2>
           </div>
           <div className="flex justify-center">
@@ -66,11 +68,11 @@ export function FeaturedProducts() {
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Featured Products
+              {t("Featured Products")}
             </h2>
           </div>
           <div className="text-center py-12">
-            <p className="text-muted-foreground">{error || "No featured products available"}</p>
+            <p className="text-muted-foreground">{error || t("No featured products available")}</p>
           </div>
         </div>
       </section>
@@ -82,10 +84,10 @@ export function FeaturedProducts() {
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-            Featured Products
+            {t("Featured Products")}
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Check out our hand-picked selection of premium products
+            {t("Check out our hand-picked selection of premium products")}
           </p>
         </div>
 

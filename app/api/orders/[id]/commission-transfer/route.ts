@@ -121,18 +121,13 @@ export async function PATCH(
     await commission.save();
 
     const adminIds = await getAdminUserIds();
+    const merchantId = order.merchantId?.toString?.() || '';
     const marketerId = order.marketerId?.toString?.() || '';
-    const baseRecipients = [
-      ...adminIds,
-      marketerId || null,
-      order.merchantId?.toString?.(),
-      mainMerchantId || null,
-    ].filter((entry) => Boolean(entry));
-
-    const userIds =
-      channel === 'marketer' && action === 'mark_paid'
-        ? [...new Set([marketerId, ...adminIds, order.merchantId?.toString?.(), mainMerchantId || null].filter(Boolean))]
-        : baseRecipients;
+    const channelRecipients =
+      channel === 'marketer'
+        ? [marketerId || null, merchantId || null, mainMerchantId || null, ...adminIds]
+        : [merchantId || null, mainMerchantId || null, ...adminIds];
+    const userIds = [...new Set(channelRecipients.filter(Boolean))];
 
     await createNotificationsForUsers({
       userIds: userIds.filter((uid) => String(uid || '') !== auth.user._id.toString()),
