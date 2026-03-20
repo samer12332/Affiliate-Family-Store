@@ -76,22 +76,91 @@ App URL:
 http://localhost:3000
 ```
 
-## Main Routes
+## Route Reference
 
+### Web Routes (App Pages)
+
+- `/` (home)
+- `/about`
+- `/shop`
+- `/faq`
+- `/contact`
+- `/cart`
+- `/checkout`
+- `/categories/:slug`
+- `/products/:slug`
+- `/order-confirmation/:id`
+- `/merchant-directory`
+- `/merchant/:merchantId`
+- `/register-marketer` (self-registration for marketers)
+- `/marketer/dashboard`
 - `/admin/login`
 - `/admin/dashboard`
 - `/admin/users`
 - `/admin/products`
+- `/admin/products/new`
+- `/admin/products/:id/edit`
 - `/admin/stocks`
-- `/admin/shipping-systems`
+- `/admin/categories`
 - `/admin/orders`
+- `/admin/orders/:id`
 - `/admin/commissions`
 - `/admin/commission-complaints`
+- `/admin/commission-complaints/new`
+- `/admin/messages`
 - `/admin/notifications`
-- `/merchant-directory`
-- `/merchant/:merchantId`
-- `/cart`
-- `/checkout`
+- `/admin/shipping-systems`
+- `/admin/shipping-systems/new`
+- `/admin/shipping-systems/:id/edit`
+
+### API Routes (Next.js Route Handlers)
+
+- `POST /api/auth/login`
+- `GET /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/register-marketer`
+- `GET /api/admin/dashboard`
+- `GET /api/admin/users`
+- `POST /api/admin/users`
+- `PATCH /api/admin/users/:id`
+- `DELETE /api/admin/users/:id`
+- `GET /api/categories`
+- `GET /api/categories/:slug`
+- `GET /api/products`
+- `POST /api/products`
+- `GET /api/products/:slug`
+- `PUT /api/products/:slug`
+- `DELETE /api/products/:slug`
+- `GET /api/stocks`
+- `PATCH /api/stocks/:productId`
+- `GET /api/shipping-systems`
+- `POST /api/shipping-systems`
+- `GET /api/shipping-systems/:id`
+- `PUT /api/shipping-systems/:id`
+- `DELETE /api/shipping-systems/:id`
+- `GET /api/orders`
+- `POST /api/orders`
+- `POST /api/orders/shipping-estimate`
+- `GET /api/orders/:id`
+- `PATCH /api/orders/:id`
+- `PATCH /api/orders/:id/commission-transfer`
+- `GET /api/commissions`
+- `GET /api/commission-complaints`
+- `POST /api/commission-complaints`
+- `PATCH /api/commission-complaints/:id`
+- `POST /api/messages`
+- `GET /api/messages`
+- `GET /api/notifications`
+- `PATCH /api/notifications`
+- `PATCH /api/notifications/:id`
+
+### Access Notes
+
+- Middleware allows direct public access to:
+  - `/admin/login`
+  - `/register-marketer`
+  - `/api/*`
+- Other app routes require authentication via `admin-token` cookie.
 
 ## Scripts
 
