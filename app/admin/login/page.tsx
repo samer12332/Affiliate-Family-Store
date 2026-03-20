@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,6 +79,12 @@ export default function AdminLogin() {
           </Button>
         </form>
 
+        <div className="mt-4 text-center">
+          <Link href="/register-marketer" className="text-sm font-medium text-stone-700 hover:text-stone-900">
+            New marketer? Create your account
+          </Link>
+        </div>
+
         <p className="mt-6 text-center text-xs text-stone-500">
           {t('Protected owner account: sameryousry99@gmail.com')}
         </p>
@@ -85,3 +92,4 @@ export default function AdminLogin() {
     </div>
   );
 }
+

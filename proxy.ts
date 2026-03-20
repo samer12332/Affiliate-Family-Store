@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const LOGIN_PATH = '/admin/login';
+const MARKETER_REGISTER_PATH = '/register-marketer';
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function isPublicAsset(pathname: string) {
@@ -54,7 +55,7 @@ export function proxy(request: NextRequest) {
     return addSecurityHeaders(NextResponse.next());
   }
 
-  if (isPublicAsset(pathname) || pathname === LOGIN_PATH) {
+  if (isPublicAsset(pathname) || pathname === LOGIN_PATH || pathname === MARKETER_REGISTER_PATH) {
     return addSecurityHeaders(NextResponse.next());
   }
 
@@ -74,3 +75,4 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: ['/((?!.*\\..*).*)'],
 };
+

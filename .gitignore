@@ -13,3 +13,5 @@ node_modules/
 *.tsbuildinfo
 .mongo-data/
 .mongo-log/
+
+.vercel
