@@ -8,6 +8,7 @@ import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { compressImageFile, createObjectPreview } from '@/lib/client-image';
 import {
   AVAILABILITY_STATUS,
   GENDER_TYPES,
@@ -20,11 +21,12 @@ import { isAdminRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 export default function NewProductPage() {
   const router = useRouter();
   const { admin, token, isLoading } = useAdminAuth();
-  const { get, post } = useApi();
+  const { get, post, request } = useApi();
   const [shippingSystems, setShippingSystems] = useState<any[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -101,21 +103,28 @@ export default function NewProductPage() {
     return { sizeWeightChart, sizes };
   };
 
-  const fileToDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('Failed to read selected image'));
-      reader.readAsDataURL(file);
-    });
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach((preview) => {
+        if (preview.startsWith('blob:')) {
+          URL.revokeObjectURL(preview);
+        }
+      });
+    };
+  }, [imagePreviews]);
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
     const mergedFiles = [...selectedFiles, ...files];
     setSelectedFiles(mergedFiles);
-    const previews = await Promise.all(mergedFiles.map(fileToDataUrl));
+    imagePreviews.forEach((preview) => {
+      if (preview.startsWith('blob:')) {
+        URL.revokeObjectURL(preview);
+      }
+    });
+    const previews = mergedFiles.map(createObjectPreview);
     setImagePreviews(previews);
     event.target.value = '';
   };
@@ -123,6 +132,10 @@ export default function NewProductPage() {
   const removeImage = (indexToRemove: number) => {
     const nextFiles = selectedFiles.filter((_, index) => index !== indexToRemove);
     const nextPreviews = imagePreviews.filter((_, index) => index !== indexToRemove);
+    const removedPreview = imagePreviews[indexToRemove];
+    if (removedPreview?.startsWith('blob:')) {
+      URL.revokeObjectURL(removedPreview);
+    }
     setSelectedFiles(nextFiles);
     setImagePreviews(nextPreviews);
   };
@@ -151,7 +164,19 @@ export default function NewProductPage() {
     const { sizeWeightChart, sizes } = parseSizeInput(formData.sizeWeightChart, isShoesCategory);
 
     try {
-      const uploadedImages = await Promise.all(selectedFiles.map(fileToDataUrl));
+      setSaving(true);
+      const uploadedImages = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const compressedFile = await compressImageFile(file);
+          const form = new FormData();
+          form.append('file', compressedFile);
+          const result = await request('/uploads/product-image', {
+            method: 'POST',
+            body: form,
+          });
+          return String(result?.url || '');
+        })
+      );
 
       await post('/products', {
         ...formData,
@@ -162,12 +187,14 @@ export default function NewProductPage() {
         colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
         sizeWeightChart,
         sizes,
-        images: uploadedImages,
+        images: uploadedImages.filter(Boolean),
       });
 
       router.push('/admin/products');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create product');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -276,7 +303,9 @@ export default function NewProductPage() {
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full">Save product</Button>
+            <Button type="submit" className="w-full" disabled={saving}>
+              {saving ? 'Saving product...' : 'Save product'}
+            </Button>
           </form>
         </Card>
       </main>

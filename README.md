@@ -62,6 +62,7 @@ MONGODB_URI=mongodb://localhost:27017/familystore
 PORT=5000
 JWT_SECRET=your-secret-key-change-in-production
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
+BLOB_READ_WRITE_TOKEN=your-vercel-blob-read-write-token
 ```
 
 ## Run

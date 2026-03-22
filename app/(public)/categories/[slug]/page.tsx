@@ -104,6 +104,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
       if (filters.gender) productParams.append("gender", filters.gender);
       if (filters.status) productParams.append("status", filters.status);
       productParams.append("sort", filters.sort);
+      productParams.append("fieldset", "listing");
 
       const productsData = await get(`/products?${productParams.toString()}`);
       setProducts(productsData.products || []);

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
@@ -14,9 +14,7 @@ import { Input } from '@/components/ui/input';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { toast } from 'sonner';
 
-const INITIAL_PRODUCTS_LIMIT = 80;
-const INITIAL_VISIBLE_PRODUCTS = 24;
-const LOAD_MORE_STEP = 24;
+const PAGE_SIZE = 24;
 
 export default function MerchantDirectoryPage() {
   const router = useRouter();
@@ -28,7 +26,10 @@ export default function MerchantDirectoryPage() {
   const [merchantFilter, setMerchantFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_PRODUCTS);
+  const deferredSearch = useDeferredValue(search);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -44,14 +45,10 @@ export default function MerchantDirectoryPage() {
 
     let cancelled = false;
 
-    Promise.all([
-      get('/admin/users?role=submerchant&limit=200'),
-      get(`/products?limit=${INITIAL_PRODUCTS_LIMIT}&fieldset=marketplace`),
-    ])
-      .then(([usersRes, productsRes]) => {
+    get('/admin/users?role=submerchant&limit=200')
+      .then((usersRes) => {
         if (cancelled) return;
         setMerchants(usersRes.users || []);
-        setProducts(productsRes.products || []);
       })
       .catch((error) => console.error('[v0] Failed to load marketer marketplace', error));
 
@@ -59,6 +56,58 @@ export default function MerchantDirectoryPage() {
       cancelled = true;
     };
   }, [admin?.role, get, isLoading, router, token]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [merchantFilter, categoryFilter, deferredSearch]);
+
+  useEffect(() => {
+    if (isLoading || !token || (admin && isSubmerchantRole(normalizeRole(admin.role)))) {
+      return;
+    }
+
+    let cancelled = false;
+    const query = new URLSearchParams({
+      limit: String(PAGE_SIZE),
+      page: String(page),
+      fieldset: 'marketplace',
+    });
+
+    if (merchantFilter !== 'all') query.set('merchantId', merchantFilter);
+    if (categoryFilter !== 'all') query.set('category', categoryFilter === 'clothes' ? 'Clothes' : 'Shoes');
+    if (deferredSearch.trim()) query.set('search', deferredSearch.trim());
+
+    setIsLoadingProducts(true);
+    get(`/products?${query.toString()}`)
+      .then((productsRes) => {
+        if (cancelled) return;
+        const nextProducts = Array.isArray(productsRes.products) ? productsRes.products : [];
+        setProducts((prev) => (page === 1 ? nextProducts : [...prev, ...nextProducts]));
+        setPagination({
+          page: Number(productsRes?.pagination?.page || page),
+          pages: Number(productsRes?.pagination?.pages || 1),
+          total: Number(productsRes?.total || 0),
+        });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('[v0] Failed to load marketplace products', error);
+          if (page === 1) {
+            setProducts([]);
+            setPagination({ page: 1, pages: 1, total: 0 });
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingProducts(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [admin, categoryFilter, deferredSearch, get, isLoading, merchantFilter, page, token]);
 
   const dedupedMerchants = useMemo(() => {
     const seenIds = new Set<string>();
@@ -82,23 +131,15 @@ export default function MerchantDirectoryPage() {
     [dedupedMerchants]
   );
 
-  const merchantOptions = useMemo(() => {
-    const productMerchantIds = new Set(
-      products.map((entry) => String(entry?.merchantId || '')).filter(Boolean)
-    );
-
-    return dedupedMerchants.filter((entry) => productMerchantIds.has(String(entry._id)));
-  }, [dedupedMerchants, products]);
-
   const merchantOptionLabel = useMemo(() => {
     const baseLabelCounts = new Map<string, number>();
-    for (const merchant of merchantOptions) {
+    for (const merchant of dedupedMerchants) {
       const base = String(merchant?.merchantProfile?.storeName || merchant?.name || 'Submerchant').trim();
       baseLabelCounts.set(base, (baseLabelCounts.get(base) || 0) + 1);
     }
 
     const labelMap = new Map<string, string>();
-    for (const merchant of merchantOptions) {
+    for (const merchant of dedupedMerchants) {
       const id = String(merchant?._id || '');
       const base = String(merchant?.merchantProfile?.storeName || merchant?.name || 'Submerchant').trim();
       const email = String(merchant?.email || '').trim();
@@ -107,32 +148,7 @@ export default function MerchantDirectoryPage() {
     }
 
     return labelMap;
-  }, [merchantOptions]);
-
-  const filteredProducts = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    return products.filter((product) => {
-      const matchesMerchant = merchantFilter === 'all' || product.merchantId === merchantFilter;
-      const matchesCategory = categoryFilter === 'all' || String(product.category || '').toLowerCase() === categoryFilter;
-      const merchantName = String(merchantNameMap.get(product.merchantId) || '').toLowerCase();
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        String(product.name || '').toLowerCase().includes(normalizedSearch) ||
-        String(product.category || '').toLowerCase().includes(normalizedSearch) ||
-        merchantName.includes(normalizedSearch);
-
-      return matchesMerchant && matchesCategory && matchesSearch;
-    });
-  }, [categoryFilter, merchantFilter, merchantNameMap, products, search]);
-
-  useEffect(() => {
-    setVisibleCount(INITIAL_VISIBLE_PRODUCTS);
-  }, [merchantFilter, categoryFilter, search]);
-
-  const visibleProducts = useMemo(
-    () => filteredProducts.slice(0, visibleCount),
-    [filteredProducts, visibleCount]
-  );
+  }, [dedupedMerchants]);
 
   if (isLoading || !token || !admin) return null;
   const totalCartItems = getTotalItems();
@@ -188,7 +204,7 @@ export default function MerchantDirectoryPage() {
               className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="all">All submerchants</option>
-              {merchantOptions.map((merchant) => (
+              {dedupedMerchants.map((merchant) => (
                 <option key={merchant._id} value={merchant._id}>
                   {merchantOptionLabel.get(String(merchant._id)) || merchant.merchantProfile?.storeName || merchant.name}
                 </option>
@@ -198,7 +214,7 @@ export default function MerchantDirectoryPage() {
         </Card>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {visibleProducts.map((product) => {
+          {products.map((product) => {
             const merchantName = merchantNameMap.get(product.merchantId) || 'Merchant';
             const merchantPrice = Number(product.merchantPrice || product.price || 0);
             return (
@@ -275,10 +291,12 @@ export default function MerchantDirectoryPage() {
           })}
         </div>
 
-        {filteredProducts.length > visibleCount && (
+        {pagination.page < pagination.pages && (
           <div className="mt-8 flex justify-center">
-            <Button variant="outline" onClick={() => setVisibleCount((prev) => prev + LOAD_MORE_STEP)}>
-              Load more ({filteredProducts.length - visibleCount} remaining)
+            <Button variant="outline" disabled={isLoadingProducts} onClick={() => setPage((prev) => prev + 1)}>
+              {isLoadingProducts
+                ? 'Loading...'
+                : `Load more (${Math.max(pagination.total - products.length, 0)} remaining)`}
             </Button>
           </div>
         )}

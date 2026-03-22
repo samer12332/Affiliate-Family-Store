@@ -41,14 +41,15 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
             <p className="mt-2 text-sm text-muted-foreground">Unread: {unreadTotal}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <Button
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={async () => {
                 await request('/notifications', {
                   method: 'PATCH',
@@ -60,7 +61,7 @@ export default function NotificationsPage() {
               Mark all read
             </Button>
             <Link href="/admin/dashboard">
-              <Button variant="outline">Back to dashboard</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Back to dashboard</Button>
             </Link>
           </div>
         </div>
@@ -84,10 +85,11 @@ export default function NotificationsPage() {
                     {!item.read && <span className="text-xs font-semibold text-blue-700">New</span>}
                   </div>
                   {item.body && <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>}
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                     <Button
                       size="sm"
                       variant="outline"
+                      className="w-full sm:w-auto"
                       onClick={async () => {
                         if (!item.read) {
                           await request(`/notifications/${item._id}`, {
@@ -104,6 +106,7 @@ export default function NotificationsPage() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="w-full sm:w-auto"
                         onClick={async () => {
                           await request(`/notifications/${item._id}`, {
                             method: 'PATCH',

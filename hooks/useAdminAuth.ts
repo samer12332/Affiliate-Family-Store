@@ -117,7 +117,10 @@ async function hydrateUserIfNeeded() {
     return hydratePromise;
   }
 
-  setAuthState({ isLoading: true });
+  const shouldBlockRender = !authState.admin;
+  if (shouldBlockRender) {
+    setAuthState({ isLoading: true });
+  }
 
   hydratePromise = (async () => {
     try {
@@ -153,7 +156,9 @@ async function hydrateUserIfNeeded() {
         error: null,
       });
     } finally {
-      setAuthState({ isLoading: false });
+      if (shouldBlockRender) {
+        setAuthState({ isLoading: false });
+      }
       hydratePromise = null;
     }
   })();

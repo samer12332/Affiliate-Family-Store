@@ -31,7 +31,7 @@ export function FeaturedProducts() {
       try {
         setLoading(true);
         setError(null);
-        const data = await get("/products?featured=true&limit=8");
+        const data = await get("/products?featured=true&limit=8&fieldset=listing");
         setProducts(Array.isArray(data.products) ? data.products : []);
       } catch (err) {
         console.error("[v0] Error fetching featured products:", err);

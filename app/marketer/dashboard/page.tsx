@@ -8,6 +8,7 @@ import { useApi } from '@/hooks/useApi';
 import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
 export default function MarketerDashboardPage() {
@@ -15,7 +16,7 @@ export default function MarketerDashboardPage() {
   const { admin, token, isLoading } = useAdminAuth();
   const { get } = useApi();
   const [data, setData] = useState<any>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const unreadNotifications = useUnreadNotifications();
 
   useEffect(() => {
     if (isLoading) return;
@@ -28,10 +29,9 @@ export default function MarketerDashboardPage() {
       return;
     }
 
-    Promise.all([get('/admin/dashboard'), get('/notifications?unreadCountOnly=true')])
-      .then(([dashboard, notifications]) => {
+    get('/admin/dashboard')
+      .then((dashboard) => {
         setData(dashboard);
-        setUnreadNotifications(Number(notifications?.unreadTotal || 0));
       })
       .catch((error) => console.error('[v0] Failed to load marketer dashboard', error));
   }, [admin?.role, get, isLoading, router, token]);

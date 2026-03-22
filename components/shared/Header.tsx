@@ -3,35 +3,23 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ShoppingCart, Menu, X, Search, Bell } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
-import { useApi } from "@/hooks/useApi";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { cn } from "@/lib/utils";
 import { SiteLogo } from "@/components/shared/SiteLogo";
 import { useI18n } from "@/components/i18n/LanguageProvider";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { getTotalItems } = useCart();
-  const { get } = useApi();
   const { admin, token, isLoading, logout } = useAdminAuth();
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
   const isMarketerLoggedIn = !isLoading && !!token && admin?.role === "marketer";
-
-  useEffect(() => {
-    if (!isMarketerLoggedIn) {
-      setUnreadNotifications(0);
-      return;
-    }
-
-    get("/notifications?unreadCountOnly=true")
-      .then((res) => setUnreadNotifications(Number(res?.unreadTotal || 0)))
-      .catch(() => setUnreadNotifications(0));
-  }, [get, isMarketerLoggedIn]);
+  const unreadNotifications = useUnreadNotifications();
 
   const navLinks = [
     { href: "/shop", label: t("Shop") },

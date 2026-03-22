@@ -65,6 +65,54 @@ async function getEligibleSubmerchantIds(mainMerchantId?: any) {
   return (await User.find(query).distinct('_id')).map((id: any) => id?.toString?.() || String(id));
 }
 
+function getProductSort(sort: string) {
+  switch (sort) {
+    case 'price':
+      return [['price', 1], ['createdAt', -1]] as [string, 1 | -1][];
+    case '-price':
+      return [['price', -1], ['createdAt', -1]] as [string, 1 | -1][];
+    case 'name':
+      return [['name', 1], ['createdAt', -1]] as [string, 1 | -1][];
+    default:
+      return [['createdAt', -1]] as [string, 1 | -1][];
+  }
+}
+
+function shapeProductListItems(products: any[], fieldset: string) {
+  return products.map((product) => {
+    const firstImage = Array.isArray(product.images) && product.images.length > 0
+      ? [product.images[0]]
+      : [];
+
+    if (fieldset === 'marketplace') {
+      return {
+        ...product,
+        images: firstImage,
+        description: safeTrim(product.description || '', 220),
+      };
+    }
+
+    if (fieldset === 'listing') {
+      return {
+        _id: product._id,
+        merchantId: product.merchantId,
+        name: product.name,
+        slug: product.slug,
+        price: product.price,
+        discountPrice: product.discountPrice,
+        category: product.category,
+        gender: product.gender,
+        featured: product.featured,
+        onSale: product.onSale,
+        availabilityStatus: product.availabilityStatus,
+        images: firstImage,
+      };
+    }
+
+    return product;
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
@@ -74,6 +122,8 @@ export async function GET(request: NextRequest) {
     const featured = searchParams.get('featured') === 'true';
     const category = searchParams.get('category');
     const gender = searchParams.get('gender');
+    const status = safeTrim(searchParams.get('status') || '', 80);
+    const sort = safeTrim(searchParams.get('sort') || '-createdAt', 40);
     const search = safeTrim(searchParams.get('search') || '', 120);
     const merchantIdParam = searchParams.get('merchantId');
     const fieldset = String(searchParams.get('fieldset') || '').trim();
@@ -85,6 +135,7 @@ export async function GET(request: NextRequest) {
     if (featured) query.featured = true;
     if (category) query.category = category;
     if (gender) query.gender = gender;
+    if (status) query.availabilityStatus = status;
     if (search) {
       const safeSearch = escapeRegex(search);
       query.$or = [{ name: { $regex: safeSearch, $options: 'i' } }, { sku: { $regex: safeSearch, $options: 'i' } }];
@@ -121,9 +172,11 @@ export async function GET(request: NextRequest) {
     const projection =
       fieldset === 'marketplace'
         ? '_id merchantId name slug description merchantPrice price suggestedCommission images shippingSystemId stock category'
+        : fieldset === 'listing'
+          ? '_id merchantId name slug price discountPrice category gender featured onSale availabilityStatus images'
         : undefined;
 
-    const productsQuery = Product.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
+    const productsQuery = Product.find(query).sort(getProductSort(sort)).limit(limit).skip(skip);
     if (projection) {
       productsQuery.select(projection);
     }
@@ -134,7 +187,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      products,
+      products: shapeProductListItems(products, fieldset),
       total,
       pagination: {
         page,

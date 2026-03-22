@@ -8,6 +8,7 @@ import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { compressImageFile, createObjectPreview } from '@/lib/client-image';
 import {
   AVAILABILITY_STATUS,
   GENDER_TYPES,
@@ -21,11 +22,12 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const router = useRouter();
   const { admin, token, isLoading } = useAdminAuth();
-  const { get, put } = useApi();
+  const { get, put, request } = useApi();
   const [shippingSystems, setShippingSystems] = useState<any[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -125,25 +127,35 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     return { sizeWeightChart, sizes };
   };
 
-  const fileToDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('Failed to read selected image'));
-      reader.readAsDataURL(file);
-    });
+  useEffect(() => {
+    return () => {
+      images.forEach((image) => {
+        if (image.startsWith('blob:')) {
+          URL.revokeObjectURL(image);
+        }
+      });
+    };
+  }, [images]);
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
-    const previews = await Promise.all(files.map(fileToDataUrl));
+    const previews = files.map(createObjectPreview);
     setSelectedFiles((prev) => [...prev, ...files]);
     setImages((prev) => [...prev, ...previews]);
     event.target.value = '';
   };
 
   const removeImage = (indexToRemove: number) => {
+    const removedImage = images[indexToRemove];
+    if (removedImage?.startsWith('blob:')) {
+      URL.revokeObjectURL(removedImage);
+      const newImageIndex = images
+        .slice(0, indexToRemove + 1)
+        .filter((image) => image.startsWith('blob:')).length - 1;
+      setSelectedFiles((prev) => prev.filter((_, index) => index !== newImageIndex));
+    }
     setImages((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
@@ -156,6 +168,20 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     }
     const { sizeWeightChart, sizes } = parseSizeInput(formData.sizeWeightChart, isShoesCategory);
     try {
+      setSaving(true);
+      const existingImages = images.filter((entry) => entry && !entry.startsWith('blob:'));
+      const uploadedImages = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const compressedFile = await compressImageFile(file);
+          const form = new FormData();
+          form.append('file', compressedFile);
+          const result = await request('/uploads/product-image', {
+            method: 'POST',
+            body: form,
+          });
+          return String(result?.url || '');
+        })
+      );
       await put(`/products/${id}`, {
         ...formData,
         merchantPrice: Number(formData.merchantPrice),
@@ -165,11 +191,13 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         colors: formData.colors.split(',').map((entry) => entry.trim()).filter(Boolean),
         sizeWeightChart,
         sizes,
-        images: images.map((entry) => entry.trim()).filter(Boolean),
+        images: [...existingImages, ...uploadedImages].map((entry) => entry.trim()).filter(Boolean),
       });
       router.push('/admin/products');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to update product');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -273,7 +301,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <textarea value={formData.description} onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} className="min-h-32 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full">Save changes</Button>
+            <Button type="submit" className="w-full" disabled={saving}>
+              {saving ? 'Saving changes...' : 'Save changes'}
+            </Button>
           </form>
         </Card>
       </main>

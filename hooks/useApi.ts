@@ -15,11 +15,12 @@ export const useApi = () => {
     const method = String(options.method || "GET").toUpperCase();
     const cacheMode = method === "GET" ? "default" : "no-store";
     const url = `${API_URL}${endpoint}`;
+    const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
     const response = await fetch(url, {
       cache: cacheMode,
       credentials: "same-origin",
       headers: {
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(options.body && !isFormDataBody ? { "Content-Type": "application/json" } : {}),
         ...(authToken && !(options.headers as Record<string, string> | undefined)?.Authorization
           ? { Authorization: `Bearer ${authToken}` }
           : {}),

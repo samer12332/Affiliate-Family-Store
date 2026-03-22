@@ -1,14 +1,11 @@
 import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { Commission, Order, Product, ShippingSystem, User } from '@/lib/models';
+import { Order, Product, ShippingSystem, User } from '@/lib/models';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { NextRequest, NextResponse } from 'next/server';
 
 const SUBMERCHANT_ROLE_FILTER = { $in: ['submerchant', 'merchant'] };
 const DASHBOARD_RECENT_ORDERS_LIMIT = 10;
-const DASHBOARD_RECENT_PRODUCTS_LIMIT = 10;
-const DASHBOARD_RECENT_COMMISSIONS_LIMIT = 20;
-
 async function getOrderStatusCounts(orderQuery: Record<string, any>) {
   const rows = await Order.aggregate([
     { $match: orderQuery },
@@ -190,11 +187,8 @@ export async function GET(request: NextRequest) {
 
     const shouldLoadProductStats = !isMarketerRole(actorRole);
 
-    const [orders, products, totalOrders, totalProducts, totalShippingSystems, statusCounts] = await Promise.all([
+    const [orders, totalOrders, totalProducts, totalShippingSystems, statusCounts] = await Promise.all([
       Order.find(queryForRole).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_ORDERS_LIMIT).select('_id orderNumber status customer.name merchantId marketerId createdAt').lean(),
-      shouldLoadProductStats
-        ? Product.find(productQuery).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_PRODUCTS_LIMIT).select('_id name category merchantId createdAt').lean()
-        : Promise.resolve([]),
       Order.countDocuments(queryForRole),
       shouldLoadProductStats ? Product.countDocuments(productQuery) : Promise.resolve(0),
       shouldLoadProductStats ? ShippingSystem.countDocuments(shippingQuery) : Promise.resolve(0),
@@ -217,7 +211,6 @@ export async function GET(request: NextRequest) {
       totalMarketers,
       totalShippingSystems,
       recentOrders: orders,
-      recentProducts: products,
       statusCounts,
     };
 
@@ -319,74 +312,8 @@ export async function GET(request: NextRequest) {
         totalMainMerchantCommissions: settlementTotals.mainMerchantPending,
         totalMainMerchantCommissionsPending: settlementTotals.mainMerchantPending,
         totalMainMerchantCommissionsReceived: settlementTotals.mainMerchantReceived,
-        mainMerchantCommissions: await (async () => {
-          const managedOrders = await Order.find({ merchantId: { $in: managedSubmerchantIds } })
-            .sort({ createdAt: -1 })
-            .limit(DASHBOARD_RECENT_COMMISSIONS_LIMIT * 2)
-            .select('_id orderNumber merchantId marketerId')
-            .lean();
-          const managedOrderIds = managedOrders.map((entry: any) => entry._id);
-          const managedCommissions = await Commission.find()
-            .where('orderId')
-            .in(managedOrderIds)
-            .sort({ createdAt: -1 })
-            .select('orderId mainMerchantAmount status createdAt')
-            .lean();
-          const submerchantIds = [
-            ...new Set(managedOrders.map((entry: any) => entry.merchantId?.toString?.()).filter(Boolean)),
-          ];
-          const marketerIds = [
-            ...new Set(managedOrders.map((entry: any) => entry.marketerId?.toString?.()).filter(Boolean)),
-          ];
-          const users = await User.find({ _id: { $in: [...submerchantIds, ...marketerIds] } })
-            .select('_id name email merchantProfile')
-            .lean();
-          const userMap = new Map(users.map((entry: any) => [entry._id.toString(), entry]));
-          const orderMap = new Map(managedOrders.map((entry: any) => [entry._id.toString(), entry]));
-
-          return managedCommissions.map((item: any) => {
-            const order = orderMap.get(item.orderId?.toString?.() || '');
-            const submerchant = order?.merchantId ? userMap.get(order.merchantId.toString()) : null;
-            const marketer = order?.marketerId ? userMap.get(order.marketerId.toString()) : null;
-            return {
-              orderId: item.orderId?.toString?.() || null,
-              orderNumber: order?.orderNumber || 'N/A',
-              mainMerchantAmount: Number(item.mainMerchantAmount || 0),
-              status: item.status,
-              collectFrom: submerchant?.merchantProfile?.storeName || submerchant?.name || 'Unknown submerchant',
-              marketer: marketer?.name || 'Unknown marketer',
-            };
-          });
-        })(),
       });
     }
-
-    const commissions = await Commission.find({}).sort({ createdAt: -1 }).limit(DASHBOARD_RECENT_COMMISSIONS_LIMIT).select('orderId ownerAmount status createdAt').lean();
-    const commissionOrderIds = commissions.map((item: any) => item.orderId).filter(Boolean);
-    const commissionOrders = await Order.find({ _id: { $in: commissionOrderIds } })
-      .select('_id orderNumber merchantId marketerId')
-      .lean();
-    const merchantIds = [...new Set(commissionOrders.map((entry: any) => entry.merchantId?.toString?.()).filter(Boolean))];
-    const marketerIds = [...new Set(commissionOrders.map((entry: any) => entry.marketerId?.toString?.()).filter(Boolean))];
-    const users = await User.find({ _id: { $in: [...merchantIds, ...marketerIds] } })
-      .select('_id name merchantProfile')
-      .lean();
-    const userMap = new Map(users.map((entry: any) => [entry._id.toString(), entry]));
-    const orderMap = new Map(commissionOrders.map((entry: any) => [entry._id.toString(), entry]));
-
-    const commissionBreakdown = commissions.map((item: any) => {
-      const order = orderMap.get(item.orderId?.toString?.() || '');
-      const merchant = order?.merchantId ? userMap.get(order.merchantId.toString()) : null;
-      const marketer = order?.marketerId ? userMap.get(order.marketerId.toString()) : null;
-      return {
-        orderId: item.orderId?.toString?.() || null,
-        orderNumber: order?.orderNumber || 'N/A',
-        ownerAmount: Number(item.ownerAmount || 0),
-        status: item.status,
-        collectFrom: merchant?.merchantProfile?.storeName || merchant?.name || 'Unknown submerchant',
-        marketer: marketer?.name || 'Unknown marketer',
-      };
-    });
 
     const settlementTotals = await getCommissionSettlementSummary(queryForRole);
     return NextResponse.json({
@@ -394,7 +321,6 @@ export async function GET(request: NextRequest) {
       totalCommissions: settlementTotals.ownerPending,
       totalCommissionsPending: settlementTotals.ownerPending,
       totalCommissionsReceived: settlementTotals.ownerReceived,
-      commissions: commissionBreakdown,
     });
   } catch (error: any) {
     console.error('[v0] Admin dashboard API error:', error);

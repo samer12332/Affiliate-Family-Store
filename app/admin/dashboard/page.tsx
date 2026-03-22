@@ -10,6 +10,7 @@ import { MerchantNav } from '@/components/admin/merchant-nav';
 import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 import { isAdminRole, isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { useI18n } from '@/components/i18n/LanguageProvider';
 
@@ -53,7 +54,7 @@ export default function DashboardPage() {
   const { admin, token, isLoading, logout } = useAdminAuth();
   const { get } = useApi();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const unreadNotifications = useUnreadNotifications();
 
   useEffect(() => {
     if (isLoading) return;
@@ -67,10 +68,9 @@ export default function DashboardPage() {
       return;
     }
 
-    Promise.all([get('/admin/dashboard'), get('/notifications?unreadCountOnly=true')])
-      .then(([dashboard, notifications]) => {
+    get('/admin/dashboard')
+      .then((dashboard) => {
         setData(dashboard);
-        setUnreadNotifications(Number(notifications?.unreadTotal || 0));
       })
       .catch((error) => console.error('[v0] Failed to load dashboard', error));
   }, [admin?.role, get, isLoading, router, token]);
