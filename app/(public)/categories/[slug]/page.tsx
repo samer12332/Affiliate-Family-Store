@@ -19,6 +19,8 @@ interface ProductItem {
   availabilityStatus: string;
 }
 
+const PAGE_SIZE = 24;
+
 interface CategoryData {
   _id?: string;
   name: string;
@@ -63,6 +65,13 @@ function getSort(sort: string) {
   }
 }
 
+function buildCategoryHref(slug: string, params: Record<string, string>) {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => value)
+  ).toString();
+  return query ? `/categories/${slug}?${query}` : `/categories/${slug}`;
+}
+
 async function getCategoryData(slug: string): Promise<CategoryData | null> {
   const category: any = await Category.findOne({ slug }).lean();
   if (category) {
@@ -78,30 +87,39 @@ async function getCategoryData(slug: string): Promise<CategoryData | null> {
   return CATEGORY_FALLBACKS[slug] ?? null;
 }
 
-async function getProducts(categoryName: string, gender: string, status: string, sort: string) {
+async function getProducts(categoryName: string, gender: string, status: string, sort: string, page: number) {
   const query: Record<string, any> = { category: categoryName };
   if (gender) query.gender = gender;
   if (status) query.availabilityStatus = status;
 
-  const products = await Product.find(query)
-    .select("_id name slug price discountPrice images category gender featured onSale availabilityStatus")
-    .sort(getSort(sort))
-    .limit(60)
-    .lean();
+  const skip = Math.max(page - 1, 0) * PAGE_SIZE;
+  const [products, total] = await Promise.all([
+    Product.find(query)
+      .select("_id name slug price discountPrice images category gender featured onSale availabilityStatus")
+      .sort(getSort(sort))
+      .skip(skip)
+      .limit(PAGE_SIZE)
+      .lean(),
+    Product.countDocuments(query),
+  ]);
 
-  return products.map((product: any) => ({
-    _id: product._id.toString(),
-    name: product.name,
-    slug: product.slug,
-    price: Number(product.price || 0),
-    discountPrice: product.discountPrice !== undefined ? Number(product.discountPrice) : undefined,
-    images: Array.isArray(product.images) && product.images.length > 0 ? [product.images[0]] : [],
-    category: product.category,
-    gender: product.gender,
-    featured: Boolean(product.featured),
-    onSale: Boolean(product.onSale),
-    availabilityStatus: product.availabilityStatus,
-  })) as ProductItem[];
+  return {
+    products: products.map((product: any) => ({
+      _id: product._id.toString(),
+      name: product.name,
+      slug: product.slug,
+      price: Number(product.price || 0),
+      discountPrice: product.discountPrice !== undefined ? Number(product.discountPrice) : undefined,
+      images: Array.isArray(product.images) && product.images.length > 0 ? [product.images[0]] : [],
+      category: product.category,
+      gender: product.gender,
+      featured: Boolean(product.featured),
+      onSale: Boolean(product.onSale),
+      availabilityStatus: product.availabilityStatus,
+    })) as ProductItem[],
+    total,
+    pages: Math.max(Math.ceil(total / PAGE_SIZE), 1),
+  };
 }
 
 export default async function CategoryPage({
@@ -116,6 +134,12 @@ export default async function CategoryPage({
   const genderParam = String(resolvedSearchParams?.gender || "").trim();
   const statusParam = String(resolvedSearchParams?.status || "").trim();
   const sortParam = String(resolvedSearchParams?.sort || "-createdAt").trim();
+  const currentPage = Math.max(Number.parseInt(String(resolvedSearchParams?.page || "1"), 10) || 1, 1);
+  const baseQuery = {
+    ...(genderParam ? { gender: genderParam } : {}),
+    ...(statusParam ? { status: statusParam } : {}),
+    ...(sortParam ? { sort: sortParam } : {}),
+  };
 
   await connectDB();
   const category = await getCategoryData(slug);
@@ -128,7 +152,7 @@ export default async function CategoryPage({
     );
   }
 
-  const products = await getProducts(category.name, genderParam, statusParam, sortParam);
+  const { products, total, pages } = await getProducts(category.name, genderParam, statusParam, sortParam, currentPage);
 
   return (
     <div>
@@ -150,17 +174,20 @@ export default async function CategoryPage({
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Gender</label>
                 <div className="flex flex-wrap gap-2">
-                  <Link href={`/categories/${slug}?${new URLSearchParams({ ...(statusParam ? { status: statusParam } : {}), ...(sortParam ? { sort: sortParam } : {}) }).toString()}`}>
+                  <Link href={buildCategoryHref(slug, {
+                    ...(statusParam ? { status: statusParam } : {}),
+                    ...(sortParam ? { sort: sortParam } : {}),
+                  })}>
                     <Button variant={genderParam ? "outline" : "default"} size="sm">All</Button>
                   </Link>
                   {GENDER_TYPES.map((gender) => {
-                    const qs = new URLSearchParams({
+                    const href = buildCategoryHref(slug, {
                       gender,
                       ...(statusParam ? { status: statusParam } : {}),
                       ...(sortParam ? { sort: sortParam } : {}),
-                    }).toString();
+                    });
                     return (
-                      <Link key={gender} href={`/categories/${slug}?${qs}`}>
+                      <Link key={gender} href={href}>
                         <Button variant={genderParam === gender ? "default" : "outline"} size="sm">
                           {gender === "Unisex" ? "Gender Neutral" : gender}
                         </Button>
@@ -173,17 +200,20 @@ export default async function CategoryPage({
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Availability</label>
                 <div className="flex flex-wrap gap-2">
-                  <Link href={`/categories/${slug}?${new URLSearchParams({ ...(genderParam ? { gender: genderParam } : {}), ...(sortParam ? { sort: sortParam } : {}) }).toString()}`}>
+                  <Link href={buildCategoryHref(slug, {
+                    ...(genderParam ? { gender: genderParam } : {}),
+                    ...(sortParam ? { sort: sortParam } : {}),
+                  })}>
                     <Button variant={statusParam ? "outline" : "default"} size="sm">All</Button>
                   </Link>
                   {AVAILABILITY_STATUS.map((status) => {
-                    const qs = new URLSearchParams({
+                    const href = buildCategoryHref(slug, {
                       ...(genderParam ? { gender: genderParam } : {}),
                       status,
                       ...(sortParam ? { sort: sortParam } : {}),
-                    }).toString();
+                    });
                     return (
-                      <Link key={status} href={`/categories/${slug}?${qs}`}>
+                      <Link key={status} href={href}>
                         <Button variant={statusParam === status ? "default" : "outline"} size="sm">
                           {status}
                         </Button>
@@ -202,13 +232,13 @@ export default async function CategoryPage({
                     ["-price", "Price: High to Low"],
                     ["name", "Name: A to Z"],
                   ].map(([value, label]) => {
-                    const qs = new URLSearchParams({
+                    const href = buildCategoryHref(slug, {
                       ...(genderParam ? { gender: genderParam } : {}),
                       ...(statusParam ? { status: statusParam } : {}),
                       sort: value,
-                    }).toString();
+                    });
                     return (
-                      <Link key={value} href={`/categories/${slug}?${qs}`}>
+                      <Link key={value} href={href}>
                         <Button variant={sortParam === value ? "default" : "outline"} size="sm">
                           {label}
                         </Button>
@@ -242,6 +272,26 @@ export default async function CategoryPage({
                     availabilityStatus={product.availabilityStatus}
                   />
                 ))}
+              </div>
+            )}
+
+            {products.length > 0 && (
+              <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-border bg-card/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, total)} to {Math.min(currentPage * PAGE_SIZE, total)} of {total} products
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {currentPage > 1 && (
+                    <Link href={buildCategoryHref(slug, { ...baseQuery, page: String(currentPage - 1) })}>
+                      <Button variant="outline">Previous</Button>
+                    </Link>
+                  )}
+                  {currentPage < pages && (
+                    <Link href={buildCategoryHref(slug, { ...baseQuery, page: String(currentPage + 1) })}>
+                      <Button>Next</Button>
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
           </main>

@@ -21,7 +21,6 @@ export default function MerchantDirectoryPage() {
   const { admin, token, isLoading } = useAdminAuth();
   const { get } = useApi();
   const { addItem, getTotalItems } = useCart();
-  const [merchants, setMerchants] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [merchantFilter, setMerchantFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -42,20 +41,7 @@ export default function MerchantDirectoryPage() {
       router.push('/admin/dashboard');
       return;
     }
-
-    let cancelled = false;
-
-    get('/admin/users?role=submerchant&limit=200')
-      .then((usersRes) => {
-        if (cancelled) return;
-        setMerchants(usersRes.users || []);
-      })
-      .catch((error) => console.error('[v0] Failed to load marketer marketplace', error));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [admin?.role, get, isLoading, router, token]);
+  }, [admin?.role, isLoading, router, token]);
 
   useEffect(() => {
     setPage(1);
@@ -111,44 +97,28 @@ export default function MerchantDirectoryPage() {
 
   const dedupedMerchants = useMemo(() => {
     const seenIds = new Set<string>();
-    const result: any[] = [];
+    const result: Array<{ _id: string; name: string }> = [];
 
-    for (const merchant of merchants) {
-      const id = String(merchant?._id || '');
+    for (const product of products) {
+      const id = String(product?.merchantId || '');
       if (!id || seenIds.has(id)) {
         continue;
       }
 
       seenIds.add(id);
-      result.push(merchant);
+      result.push({
+        _id: id,
+        name: String(product?.merchantName || 'Submerchant').trim() || 'Submerchant',
+      });
     }
 
     return result;
-  }, [merchants]);
+  }, [products]);
 
   const merchantNameMap = useMemo(
-    () => new Map(dedupedMerchants.map((merchant) => [merchant._id, merchant.merchantProfile?.storeName || merchant.name])),
+    () => new Map(dedupedMerchants.map((merchant) => [merchant._id, merchant.name])),
     [dedupedMerchants]
   );
-
-  const merchantOptionLabel = useMemo(() => {
-    const baseLabelCounts = new Map<string, number>();
-    for (const merchant of dedupedMerchants) {
-      const base = String(merchant?.merchantProfile?.storeName || merchant?.name || 'Submerchant').trim();
-      baseLabelCounts.set(base, (baseLabelCounts.get(base) || 0) + 1);
-    }
-
-    const labelMap = new Map<string, string>();
-    for (const merchant of dedupedMerchants) {
-      const id = String(merchant?._id || '');
-      const base = String(merchant?.merchantProfile?.storeName || merchant?.name || 'Submerchant').trim();
-      const email = String(merchant?.email || '').trim();
-      const needsDisambiguation = (baseLabelCounts.get(base) || 0) > 1;
-      labelMap.set(id, needsDisambiguation && email ? `${base} (${email})` : base);
-    }
-
-    return labelMap;
-  }, [dedupedMerchants]);
 
   if (isLoading || !token || !admin) return null;
   const totalCartItems = getTotalItems();
@@ -185,7 +155,7 @@ export default function MerchantDirectoryPage() {
         <Card className="mb-6 rounded-3xl border-stone-200 p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_220px_220px]">
             <Input
-              placeholder="Search by product, category, or merchant"
+              placeholder="Search by product name or SKU"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -206,7 +176,7 @@ export default function MerchantDirectoryPage() {
               <option value="all">All submerchants</option>
               {dedupedMerchants.map((merchant) => (
                 <option key={merchant._id} value={merchant._id}>
-                  {merchantOptionLabel.get(String(merchant._id)) || merchant.merchantProfile?.storeName || merchant.name}
+                  {merchant.name}
                 </option>
               ))}
             </select>
@@ -215,7 +185,9 @@ export default function MerchantDirectoryPage() {
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {products.map((product) => {
-            const merchantName = merchantNameMap.get(product.merchantId) || 'Merchant';
+            const merchantName =
+              merchantNameMap.get(String(product.merchantId)) ||
+              String(product.merchantName || 'Merchant');
             const merchantPrice = Number(product.merchantPrice || product.price || 0);
             return (
               <Card key={product._id} className="overflow-hidden rounded-[28px] border-stone-200 p-0">

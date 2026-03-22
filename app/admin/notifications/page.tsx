@@ -46,7 +46,7 @@ export default function NotificationsPage() {
             <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
             <p className="mt-2 text-sm text-muted-foreground">Unread: {unreadTotal}</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
             <Button
               variant="outline"
               className="w-full sm:w-auto"
@@ -60,7 +60,7 @@ export default function NotificationsPage() {
             >
               Mark all read
             </Button>
-            <Link href="/admin/dashboard">
+            <Link href="/admin/dashboard" className="w-full sm:w-auto">
               <Button variant="outline" className="w-full sm:w-auto">Back to dashboard</Button>
             </Link>
           </div>
@@ -80,11 +80,11 @@ export default function NotificationsPage() {
                     item.read ? 'border-stone-200 bg-white' : 'border-blue-200 bg-blue-50/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="font-medium text-foreground">{item.title}</p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="min-w-0 break-words font-medium text-foreground">{item.title}</p>
                     {!item.read && <span className="text-xs font-semibold text-blue-700">New</span>}
                   </div>
-                  {item.body && <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>}
+                  {item.body && <p className="mt-1 break-words text-sm text-muted-foreground">{item.body}</p>}
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                     <Button
                       size="sm"

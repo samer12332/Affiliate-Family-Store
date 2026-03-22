@@ -177,6 +177,9 @@ const productSchema = new mongoose.Schema(
 
 productSchema.index({ merchantId: 1, createdAt: -1 });
 productSchema.index({ category: 1 });
+productSchema.index({ category: 1, createdAt: -1 });
+productSchema.index({ category: 1, gender: 1, availabilityStatus: 1, createdAt: -1 });
+productSchema.index({ merchantId: 1, category: 1, createdAt: -1 });
 
 const orderItemSchema = new mongoose.Schema(
   {

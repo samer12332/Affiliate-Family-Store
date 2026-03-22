@@ -86,9 +86,19 @@ function shapeProductListItems(products: any[], fieldset: string) {
 
     if (fieldset === 'marketplace') {
       return {
-        ...product,
+        _id: product._id,
+        merchantId: product.merchantId,
+        merchantName: product.merchantName || 'Merchant',
         images: firstImage,
+        name: product.name,
+        slug: product.slug,
         description: safeTrim(product.description || '', 220),
+        merchantPrice: product.merchantPrice,
+        price: product.price,
+        suggestedCommission: product.suggestedCommission,
+        shippingSystemId: product.shippingSystemId,
+        stock: product.stock,
+        category: product.category,
       };
     }
 
@@ -170,21 +180,66 @@ export async function GET(request: NextRequest) {
     }
 
     const projection =
-      fieldset === 'marketplace'
-        ? '_id merchantId name slug description merchantPrice price suggestedCommission images shippingSystemId stock category'
-        : fieldset === 'listing'
-          ? '_id merchantId name slug price discountPrice category gender featured onSale availabilityStatus images'
+      fieldset === 'listing'
+        ? '_id merchantId name slug price discountPrice category gender featured onSale availabilityStatus images'
         : undefined;
 
-    const productsQuery = Product.find(query).sort(getProductSort(sort)).limit(limit).skip(skip);
-    if (projection) {
-      productsQuery.select(projection);
-    }
+    const productsPromise =
+      fieldset === 'marketplace'
+        ? Product.aggregate([
+            { $match: query },
+            { $sort: Object.fromEntries(getProductSort(sort)) },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'merchantId',
+                foreignField: '_id',
+                as: 'merchant',
+              },
+            },
+            {
+              $addFields: {
+                merchantName: {
+                  $let: {
+                    vars: {
+                      merchantDoc: { $arrayElemAt: ['$merchant', 0] },
+                    },
+                    in: {
+                      $ifNull: ['$$merchantDoc.merchantProfile.storeName', '$$merchantDoc.name'],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                merchantId: 1,
+                merchantName: 1,
+                name: 1,
+                slug: 1,
+                description: 1,
+                merchantPrice: 1,
+                price: 1,
+                suggestedCommission: 1,
+                images: 1,
+                shippingSystemId: 1,
+                stock: 1,
+                category: 1,
+              },
+            },
+          ]).exec()
+        : (() => {
+            const listingQuery = Product.find(query).sort(getProductSort(sort)).limit(limit).skip(skip);
+            if (projection) {
+              listingQuery.select(projection);
+            }
+            return listingQuery.lean().exec();
+          })();
 
-    const [products, total] = await Promise.all([
-      productsQuery.lean(),
-      Product.countDocuments(query),
-    ]);
+    const [products, total] = await Promise.all([productsPromise, Product.countDocuments(query)]);
 
     return NextResponse.json({
       products: shapeProductListItems(products, fieldset),
