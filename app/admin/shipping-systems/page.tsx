@@ -44,19 +44,19 @@ export default function ShippingSystemsPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Submerchant shipping</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               This page only lists shipping systems. Creating and editing now happen on separate pages.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <Link href="/admin/dashboard">
-              <Button variant="outline">Back to dashboard</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Back to dashboard</Button>
             </Link>
             <Link href="/admin/shipping-systems/new">
-              <Button>Create shipping system</Button>
+              <Button className="w-full sm:w-auto">Create shipping system</Button>
             </Link>
           </div>
         </div>
@@ -82,12 +82,13 @@ export default function ShippingSystemsPage() {
                   </div>
                 ))}
               </div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <Link href={`/admin/shipping-systems/${system._id}/edit`}>
-                  <Button variant="outline">Edit</Button>
+                  <Button variant="outline" className="w-full sm:w-auto">Edit</Button>
                 </Link>
                 <Button
                   variant="destructive"
+                  className="w-full sm:w-auto"
                   onClick={async () => {
                     await deleteRequest(`/shipping-systems/${system._id}`);
                     setSystems((prev) => prev.filter((entry) => entry._id !== system._id));
@@ -100,13 +101,14 @@ export default function ShippingSystemsPage() {
           ))}
         </div>
 
-        <div className="mt-6 flex items-center justify-between">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             Showing page {pagination.page} of {Math.max(1, pagination.pages)} ({pagination.total} systems)
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
+              className="w-full sm:w-auto"
               disabled={pagination.page <= 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
@@ -114,6 +116,7 @@ export default function ShippingSystemsPage() {
             </Button>
             <Button
               variant="outline"
+              className="w-full sm:w-auto"
               disabled={pagination.page >= pagination.pages}
               onClick={() => setPage((prev) => Math.min(pagination.pages, prev + 1))}
             >

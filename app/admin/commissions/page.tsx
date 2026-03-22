@@ -98,19 +98,19 @@ export default function CommissionsPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Commission Transfers</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Mark commission payments and receipts. Receiving is enabled only after sender marks paid.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <Link href="/admin/notifications">
-              <Button variant="outline">Notifications</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Notifications</Button>
             </Link>
             <Link href="/admin/dashboard">
-              <Button variant="outline">Back to dashboard</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Back to dashboard</Button>
             </Link>
           </div>
         </div>
@@ -139,13 +139,13 @@ export default function CommissionsPage() {
                 const header = orderRows[0];
                 return (
                   <div key={header.orderId} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <div className="mb-3 flex items-center justify-between gap-4">
+                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-semibold text-stone-900">{header.orderNumber}</p>
                         <p className="text-xs text-stone-500">Status: {header.orderStatus}</p>
                       </div>
                       <Link href={header.href || `/admin/orders/${header.orderId}`}>
-                        <Button variant="outline" size="sm">Open order</Button>
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">Open order</Button>
                       </Link>
                     </div>
 
@@ -162,7 +162,7 @@ export default function CommissionsPage() {
                                   {Number(row.amount || 0).toFixed(2)} EGP
                                 </p>
                               </div>
-                              <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                                   receiverReceived
                                     ? 'bg-emerald-100 text-emerald-700'
@@ -176,6 +176,7 @@ export default function CommissionsPage() {
                                   <Button
                                     size="sm"
                                     variant="outline"
+                                    className="w-full sm:w-auto"
                                     disabled={savingKey === `${row.orderId}:${row.channel}:mark_paid`}
                                     onClick={() => updateTransfer(row.orderId, row.channel, 'mark_paid')}
                                   >
@@ -187,13 +188,14 @@ export default function CommissionsPage() {
                                     <Button
                                       size="sm"
                                       variant="outline"
+                                      className="w-full sm:w-auto"
                                       disabled={savingKey === `${row.orderId}:${row.channel}:mark_received`}
                                       onClick={() => updateTransfer(row.orderId, row.channel, 'mark_received')}
                                     >
                                       {savingKey === `${row.orderId}:${row.channel}:mark_received` ? 'Saving...' : 'Mark received'}
                                     </Button>
                                     <Link href={`/admin/commission-complaints/new?orderId=${row.orderId}&channel=${row.channel}`}>
-                                      <Button size="sm" variant="outline">Didn&apos;t receive</Button>
+                                      <Button size="sm" variant="outline" className="w-full sm:w-auto">Didn&apos;t receive</Button>
                                     </Link>
                                   </>
                                 )}

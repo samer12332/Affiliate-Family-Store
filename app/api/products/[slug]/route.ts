@@ -15,6 +15,34 @@ async function findProduct(decoded: string) {
   return product;
 }
 
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+async function generateUniqueSku(base: string, excludeProductId?: string): Promise<string> {
+  const root = slugify(base).toUpperCase().replace(/-/g, '') || 'PRODUCT';
+  let candidate = root;
+  let counter = 2;
+
+  while (
+    await Product.findOne({
+      sku: candidate,
+      ...(excludeProductId ? { _id: { $ne: excludeProductId } } : {}),
+    })
+  ) {
+    candidate = `${root}-${counter}`;
+    counter += 1;
+  }
+
+  return candidate;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -73,6 +101,10 @@ export async function PUT(
       update.name = nextName;
     }
     if (body.slug !== undefined && String(body.slug).trim()) update.slug = String(body.slug).trim().toLowerCase();
+    if (body.sku !== undefined) {
+      const sku = safeTrim(body.sku, 120);
+      update.sku = sku || await generateUniqueSku(String(body.slug || body.name || product.slug || product.name || 'product'), String(product._id));
+    }
     if (body.merchantPrice !== undefined || body.price !== undefined) {
       const merchantPrice = Number(body.merchantPrice ?? body.price);
       if (!Number.isFinite(merchantPrice) || merchantPrice < 0 || merchantPrice > 1_000_000) {
@@ -148,6 +180,12 @@ export async function PUT(
     return NextResponse.json({ product: updated });
   } catch (error: any) {
     console.error('[v0] Product update error:', error);
+    if (error?.code === 11000) {
+      return NextResponse.json(
+        { error: 'A product with the same SKU or slug already exists. Please try again.' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to update product' },
       { status: 500 }

@@ -39,22 +39,22 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Submerchant products</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Products are now merchant-owned and only appear on that merchant&apos;s page.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <Link href="/admin/dashboard">
-              <Button variant="outline">Back to dashboard</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Back to dashboard</Button>
             </Link>
             <Link href="/admin/stocks">
-              <Button variant="outline">Manage stock</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Manage stock</Button>
             </Link>
             <Link href="/admin/products/new">
-              <Button>Create new product</Button>
+              <Button className="w-full sm:w-auto">Create new product</Button>
             </Link>
           </div>
         </div>
@@ -74,12 +74,13 @@ export default function ProductsPage() {
                     Stock: {Number(product.stock || 0)}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Link href={`/admin/products/${product._id}/edit`}>
-                    <Button variant="outline">Edit</Button>
+                    <Button variant="outline" className="w-full sm:w-auto">Edit</Button>
                   </Link>
                   <Button
                     variant="destructive"
+                    className="w-full sm:w-auto"
                     onClick={async () => {
                       await deleteRequest(`/products/${product._id}`);
                       setProducts((prev) => prev.filter((entry) => entry._id !== product._id));

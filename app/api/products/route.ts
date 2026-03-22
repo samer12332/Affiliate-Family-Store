@@ -29,6 +29,19 @@ async function generateUniqueSlug(base: string): Promise<string> {
   return candidate;
 }
 
+async function generateUniqueSku(base: string): Promise<string> {
+  const root = slugify(base).toUpperCase().replace(/-/g, '') || 'PRODUCT';
+  let candidate = root;
+  let counter = 2;
+
+  while (await Product.findOne({ sku: candidate })) {
+    candidate = `${root}-${counter}`;
+    counter += 1;
+  }
+
+  return candidate;
+}
+
 async function getLegacyMainMerchantIds() {
   return (await User.distinct('mainMerchantId', { mainMerchantId: { $ne: null } }))
     .filter(Boolean)
@@ -219,6 +232,9 @@ export async function POST(request: NextRequest) {
       ? body.sizes.map((value: any) => String(value).trim()).filter(Boolean)
       : sizeWeightChart.map((entry: any) => entry.size);
 
+    const providedSku = safeTrim(body?.sku, 120);
+    const finalSku = providedSku || await generateUniqueSku(finalSlug);
+
     const product = await Product.create({
       merchantId,
       name: productName,
@@ -239,12 +255,18 @@ export async function POST(request: NextRequest) {
       featured: Boolean(body?.featured),
       onSale: Boolean(body?.onSale),
       brand: merchant.merchantProfile?.storeName || merchant.name,
-      sku: safeTrim(body?.sku, 120),
+      sku: finalSku,
     });
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (error: any) {
     console.error('[v0] Product creation error:', error);
+    if (error?.code === 11000) {
+      return NextResponse.json(
+        { error: 'A product with the same SKU or slug already exists. Please try again.' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to create product' },
       { status: 500 }
