@@ -1,278 +1,177 @@
-'use client';
-
-import Image from 'next/image';
-import Link from 'next/link';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ShoppingCart } from 'lucide-react';
-import { useAdminAuth } from '@/hooks/useAdminAuth';
-import { useApi } from '@/hooks/useApi';
-import { useCart } from '@/hooks/useCart';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
-import { toast } from 'sonner';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import MarketerMarketplaceClient from '@/components/marketplace/MarketerMarketplaceClient';
+import { connectDB } from '@/lib/db';
+import { Product, User } from '@/lib/models';
+import { isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { safeTrim } from '@/lib/validation';
+import { verifyToken } from '@/server/utils/auth';
 
 const PAGE_SIZE = 24;
 
-export default function MerchantDirectoryPage() {
-  const router = useRouter();
-  const { admin, token, isLoading } = useAdminAuth();
-  const { get } = useApi();
-  const { addItem, getTotalItems } = useCart();
-  const [products, setProducts] = useState<any[]>([]);
-  const [merchantFilter, setMerchantFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const deferredSearch = useDeferredValue(search);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+type MarketplaceProduct = {
+  _id: string;
+  merchantId: string;
+  merchantName: string;
+  images: string[];
+  name: string;
+  slug: string;
+  description: string;
+  merchantPrice: number;
+  price: number;
+  suggestedCommission: number | null;
+  shippingSystemId: string;
+  stock: number;
+  category: string;
+};
 
-  useEffect(() => {
-    if (isLoading) return;
-    if (!token) {
-      router.push('/admin/login');
-      return;
-    }
+function getProductSort(sort: string) {
+  switch (sort) {
+    case 'price':
+      return [['price', 1], ['createdAt', -1]] as [string, 1 | -1][];
+    case '-price':
+      return [['price', -1], ['createdAt', -1]] as [string, 1 | -1][];
+    case 'name':
+      return [['name', 1], ['createdAt', -1]] as [string, 1 | -1][];
+    default:
+      return [['createdAt', -1]] as [string, 1 | -1][];
+  }
+}
 
-    if (isSubmerchantRole(normalizeRole(admin?.role))) {
-      router.push('/admin/dashboard');
-      return;
-    }
-  }, [admin?.role, isLoading, router, token]);
+async function getLegacyMainMerchantIds() {
+  return (await User.distinct('mainMerchantId', { mainMerchantId: { $ne: null } }))
+    .filter(Boolean)
+    .map((id: any) => id?.toString?.() || String(id));
+}
 
-  useEffect(() => {
-    setPage(1);
-  }, [merchantFilter, categoryFilter, deferredSearch]);
+async function getEligibleSubmerchantIds(mainMerchantId?: any) {
+  const legacyMainMerchantIds = await getLegacyMainMerchantIds();
+  const query: any = {
+    active: true,
+    $or: [
+      { role: 'submerchant' },
+      { role: 'merchant', _id: { $nin: legacyMainMerchantIds } },
+    ],
+  };
 
-  useEffect(() => {
-    if (isLoading || !token || (admin && isSubmerchantRole(normalizeRole(admin.role)))) {
-      return;
-    }
+  if (mainMerchantId) {
+    query.mainMerchantId = mainMerchantId;
+  }
 
-    let cancelled = false;
-    const query = new URLSearchParams({
-      limit: String(PAGE_SIZE),
-      page: String(page),
-      fieldset: 'marketplace',
-    });
+  return (await User.find(query).distinct('_id')).map((id: any) => id?.toString?.() || String(id));
+}
 
-    if (merchantFilter !== 'all') query.set('merchantId', merchantFilter);
-    if (categoryFilter !== 'all') query.set('category', categoryFilter === 'clothes' ? 'Clothes' : 'Shoes');
-    if (deferredSearch.trim()) query.set('search', deferredSearch.trim());
+function shapeMarketplaceProducts(products: any[]): MarketplaceProduct[] {
+  return products.map((product) => ({
+    _id: String(product._id),
+    merchantId: String(product.merchantId),
+    merchantName: String(product.merchantName || 'Merchant'),
+    images: Array.isArray(product.images) && product.images.length > 0 ? [product.images[0]] : [],
+    name: String(product.name || ''),
+    slug: String(product.slug || ''),
+    description: safeTrim(String(product.description || ''), 220),
+    merchantPrice: Number(product.merchantPrice || 0),
+    price: Number(product.price || 0),
+    suggestedCommission:
+      product.suggestedCommission === null || product.suggestedCommission === undefined
+        ? null
+        : Number(product.suggestedCommission),
+    shippingSystemId: String(product.shippingSystemId || ''),
+    stock: Number(product.stock || 0),
+    category: String(product.category || ''),
+  }));
+}
 
-    setIsLoadingProducts(true);
-    get(`/products?${query.toString()}`)
-      .then((productsRes) => {
-        if (cancelled) return;
-        const nextProducts = Array.isArray(productsRes.products) ? productsRes.products : [];
-        setProducts((prev) => (page === 1 ? nextProducts : [...prev, ...nextProducts]));
-        setPagination({
-          page: Number(productsRes?.pagination?.page || page),
-          pages: Number(productsRes?.pagination?.pages || 1),
-          total: Number(productsRes?.total || 0),
-        });
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          console.error('[v0] Failed to load marketplace products', error);
-          if (page === 1) {
-            setProducts([]);
-            setPagination({ page: 1, pages: 1, total: 0 });
-          }
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingProducts(false);
-        }
-      });
+async function getInitialMarketplaceProducts(user: any) {
+  const query: any = {};
+  const actorRole = normalizeRole(user?.role);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [admin, categoryFilter, deferredSearch, get, isLoading, merchantFilter, page, token]);
+  if (isSubmerchantRole(actorRole)) {
+    query.merchantId = user._id;
+  } else if (isMarketerRole(actorRole)) {
+    const submerchantIds = await getEligibleSubmerchantIds(user.mainMerchantId || undefined);
+    query.merchantId = { $in: submerchantIds };
+  }
 
-  const dedupedMerchants = useMemo(() => {
-    const seenIds = new Set<string>();
-    const result: Array<{ _id: string; name: string }> = [];
+  const products = await Product.aggregate([
+    { $match: query },
+    { $sort: Object.fromEntries(getProductSort('-createdAt')) },
+    { $limit: PAGE_SIZE + 1 },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'merchantId',
+        foreignField: '_id',
+        as: 'merchant',
+      },
+    },
+    {
+      $addFields: {
+        merchantName: {
+          $let: {
+            vars: {
+              merchantDoc: { $arrayElemAt: ['$merchant', 0] },
+            },
+            in: {
+              $ifNull: ['$$merchantDoc.merchantProfile.storeName', '$$merchantDoc.name'],
+            },
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        merchantId: 1,
+        merchantName: 1,
+        name: 1,
+        slug: 1,
+        description: 1,
+        merchantPrice: 1,
+        price: 1,
+        suggestedCommission: 1,
+        images: 1,
+        shippingSystemId: 1,
+        stock: 1,
+        category: 1,
+      },
+    },
+  ]).exec();
 
-    for (const product of products) {
-      const id = String(product?.merchantId || '');
-      if (!id || seenIds.has(id)) {
-        continue;
-      }
+  return {
+    products: shapeMarketplaceProducts(products.slice(0, PAGE_SIZE)),
+    hasMore: products.length > PAGE_SIZE,
+  };
+}
 
-      seenIds.add(id);
-      result.push({
-        _id: id,
-        name: String(product?.merchantName || 'Submerchant').trim() || 'Submerchant',
-      });
-    }
+export default async function MerchantDirectoryPage() {
+  const authToken = (await cookies()).get('admin-token')?.value || '';
+  if (!authToken) {
+    redirect('/admin/login');
+  }
 
-    return result;
-  }, [products]);
+  const decoded = verifyToken(authToken) as { id?: string } | null;
+  if (!decoded?.id) {
+    redirect('/admin/login');
+  }
 
-  const merchantNameMap = useMemo(
-    () => new Map(dedupedMerchants.map((merchant) => [merchant._id, merchant.name])),
-    [dedupedMerchants]
-  );
+  await connectDB();
+  const viewer = await User.findById(decoded.id).select('_id role active mainMerchantId');
+  if (!viewer || !viewer.active) {
+    redirect('/admin/login');
+  }
 
-  if (isLoading || !token || !admin) return null;
-  const totalCartItems = getTotalItems();
+  if (isSubmerchantRole(normalizeRole(viewer.role))) {
+    redirect('/admin/dashboard');
+  }
+
+  const { products, hasMore } = await getInitialMarketplaceProducts(viewer);
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f5ef,#f3efe8_45%,#faf8f4)]">
-      <main className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-8 rounded-3xl border border-stone-200 bg-white/90 p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Marketer marketplace</p>
-              <h1 className="mt-2 text-3xl font-bold text-stone-900">Browse all submerchant products</h1>
-              <p className="mt-2 max-w-3xl text-sm text-stone-600">
-                Filter by merchant, build your cart, and confirm orders. Checkout will split the cart into separate merchant orders automatically.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/marketer/dashboard">
-                <Button variant="outline">My dashboard</Button>
-              </Link>
-              <Link href="/admin/orders">
-                <Button variant="outline">My orders</Button>
-              </Link>
-              <Link href="/cart">
-                <Button className="gap-2">
-                  <ShoppingCart className="h-4 w-4" />
-                  Cart ({totalCartItems})
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        <Card className="mb-6 rounded-3xl border-stone-200 p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_220px]">
-            <Input
-              placeholder="Search by product name or SKU"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <select
-              value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value)}
-              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="all">All categories</option>
-              <option value="clothes">Clothes</option>
-              <option value="shoes">Shoes</option>
-            </select>
-            <select
-              value={merchantFilter}
-              onChange={(event) => setMerchantFilter(event.target.value)}
-              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="all">All submerchants</option>
-              {dedupedMerchants.map((merchant) => (
-                <option key={merchant._id} value={merchant._id}>
-                  {merchant.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </Card>
-
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {products.map((product) => {
-            const merchantName =
-              merchantNameMap.get(String(product.merchantId)) ||
-              String(product.merchantName || 'Merchant');
-            const merchantPrice = Number(product.merchantPrice || product.price || 0);
-            return (
-              <Card key={product._id} className="overflow-hidden rounded-[28px] border-stone-200 p-0">
-                <div className="relative aspect-square bg-stone-100">
-                  <Image
-                    src={product.images?.[0] || '/placeholder.jpg'}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="space-y-3 p-4">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-stone-500">{merchantName}</p>
-                    <h2 className="mt-1 line-clamp-1 text-lg font-semibold text-stone-900">{product.name}</h2>
-                    <p className="mt-1 line-clamp-2 text-sm text-stone-600">
-                      {product.description || 'No description added yet for this product.'}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-50 px-3 py-2">
-                    <div>
-                      <p className="text-[11px] text-stone-500">Merchant price</p>
-                      <p className="text-sm font-semibold text-stone-900">{merchantPrice.toFixed(2)} EGP</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[11px] text-stone-500">Suggested commission</p>
-                      <p className="text-sm font-semibold text-stone-900">
-                        {product.suggestedCommission !== null && product.suggestedCommission !== undefined
-                          ? `${Number(product.suggestedCommission).toFixed(2)} EGP`
-                          : 'Not set'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Link className="flex-1" href={`/merchant/${product.merchantId}`}>
-                      <Button variant="outline" className="w-full">Merchant</Button>
-                    </Link>
-                    <Button
-                      className="flex-1"
-                      onClick={() => {
-                        const result = addItem({
-                          productId: product._id,
-                          merchantId: product.merchantId,
-                          shippingSystemId: String(product.shippingSystemId || ''),
-                          merchantName,
-                          productName: product.name,
-                          productSlug: product.slug,
-                          productImage: product.images?.[0] || '/placeholder.jpg',
-                          selectedColor: '',
-                          selectedSize: '',
-                          quantity: 1,
-                          price: merchantPrice,
-                          merchantPrice,
-                          salePriceByMarketer: merchantPrice,
-                          shippingFee: 0,
-                          availableStock: Number(product.stock ?? 0),
-                        });
-
-                        if (!result.ok) {
-                          toast.error(result.error);
-                          return;
-                        }
-
-                        toast.success('Product added to cart');
-                      }}
-                    >
-                      Add to cart
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-
-        {pagination.page < pagination.pages && (
-          <div className="mt-8 flex justify-center">
-            <Button variant="outline" disabled={isLoadingProducts} onClick={() => setPage((prev) => prev + 1)}>
-              {isLoadingProducts
-                ? 'Loading...'
-                : `Load more (${Math.max(pagination.total - products.length, 0)} remaining)`}
-            </Button>
-          </div>
-        )}
-      </main>
-    </div>
+    <MarketerMarketplaceClient
+      authToken={authToken}
+      initialProducts={products}
+      initialHasMore={hasMore}
+    />
   );
 }

@@ -137,6 +137,7 @@ export async function GET(request: NextRequest) {
     const search = safeTrim(searchParams.get('search') || '', 120);
     const merchantIdParam = searchParams.get('merchantId');
     const fieldset = String(searchParams.get('fieldset') || '').trim();
+    const includeTotal = searchParams.get('includeTotal') !== 'false';
     const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
     const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
     const skip = (page - 1) * limit;
@@ -184,13 +185,15 @@ export async function GET(request: NextRequest) {
         ? '_id merchantId name slug price discountPrice category gender featured onSale availabilityStatus images'
         : undefined;
 
+    const queryLimit = includeTotal ? limit : limit + 1;
+
     const productsPromise =
       fieldset === 'marketplace'
         ? Product.aggregate([
             { $match: query },
             { $sort: Object.fromEntries(getProductSort(sort)) },
             { $skip: skip },
-            { $limit: limit },
+            { $limit: queryLimit },
             {
               $lookup: {
                 from: 'users',
@@ -232,23 +235,29 @@ export async function GET(request: NextRequest) {
             },
           ]).exec()
         : (() => {
-            const listingQuery = Product.find(query).sort(getProductSort(sort)).limit(limit).skip(skip);
+            const listingQuery = Product.find(query).sort(getProductSort(sort)).limit(queryLimit).skip(skip);
             if (projection) {
               listingQuery.select(projection);
             }
             return listingQuery.lean().exec();
           })();
 
-    const [products, total] = await Promise.all([productsPromise, Product.countDocuments(query)]);
+    const [products, total] = await Promise.all([
+      productsPromise,
+      includeTotal ? Product.countDocuments(query) : Promise.resolve(null),
+    ]);
+    const normalizedProducts = !includeTotal && Array.isArray(products) ? products.slice(0, limit) : products;
+    const hasMore = !includeTotal && Array.isArray(products) ? products.length > limit : false;
 
     return NextResponse.json({
-      products: shapeProductListItems(products, fieldset),
-      total,
+      products: shapeProductListItems(normalizedProducts, fieldset),
+      total: total ?? null,
+      hasMore,
       pagination: {
         page,
         limit,
-        total,
-        pages: Math.ceil(total / limit),
+        total: total ?? null,
+        pages: total === null ? null : Math.ceil(total / limit),
       },
     });
   } catch (error: any) {

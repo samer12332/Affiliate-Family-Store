@@ -46,22 +46,24 @@ export default function NotificationsPage() {
             <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
             <p className="mt-2 text-sm text-muted-foreground">Unread: {unreadTotal}</p>
           </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={async () => {
-                await request('/notifications', {
-                  method: 'PATCH',
-                  body: JSON.stringify({ action: 'read_all' }),
-                });
-                await load();
-              }}
-            >
-              Mark all read
-            </Button>
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+            <div className="w-full sm:w-auto">
+              <Button
+                variant="outline"
+                className="w-full whitespace-normal sm:w-auto"
+                onClick={async () => {
+                  await request('/notifications', {
+                    method: 'PATCH',
+                    body: JSON.stringify({ action: 'read_all' }),
+                  });
+                  await load();
+                }}
+              >
+                Mark all read
+              </Button>
+            </div>
             <Link href="/admin/dashboard" className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full sm:w-auto">Back to dashboard</Button>
+              <Button variant="outline" className="w-full whitespace-normal sm:w-auto">Back to dashboard</Button>
             </Link>
           </div>
         </div>
@@ -128,3 +130,4 @@ export default function NotificationsPage() {
     </div>
   );
 }
+
