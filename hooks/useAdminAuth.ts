@@ -48,6 +48,7 @@ let authState: AuthState = {
 
 const listeners = new Set<() => void>();
 let hydratePromise: Promise<void> | null = null;
+let lastVerifiedToken: string | null = null;
 
 function notifyAuthListeners() {
   for (const listener of listeners) {
@@ -67,6 +68,7 @@ function clearAuthStorage() {
   localStorage.removeItem(TOKEN_STORAGE_KEY);
   localStorage.removeItem(USER_STORAGE_KEY);
   clearTokenCookie();
+  lastVerifiedToken = null;
 }
 
 function readStoredUser() {
@@ -113,6 +115,10 @@ async function hydrateUserIfNeeded() {
     return;
   }
 
+  if (authState.admin && authState.token === lastVerifiedToken) {
+    return;
+  }
+
   if (hydratePromise) {
     return hydratePromise;
   }
@@ -148,6 +154,7 @@ async function hydrateUserIfNeeded() {
       }
 
       setAuthState({ admin: user, error: null });
+      lastVerifiedToken = authState.token;
     } catch {
       clearAuthStorage();
       setAuthState({
@@ -231,6 +238,7 @@ export const useAdminAuth = () => {
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(adminData));
       }
       writeTokenCookie(authToken);
+      lastVerifiedToken = authToken;
       setAuthState({ token: authToken, admin: adminData, error: null });
       window.dispatchEvent(new Event(AUTH_UPDATED_EVENT));
 
