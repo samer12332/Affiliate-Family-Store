@@ -23,6 +23,7 @@ export interface CartItem {
 const CART_STORAGE_KEY_PREFIX = "family-store-cart";
 const CART_UPDATED_EVENT = "family-store-cart-updated";
 const AUTH_UPDATED_EVENT = "family-store-auth-updated";
+const CART_SIGNATURE_SEPARATOR = "|";
 
 const getCurrentCartStorageKey = () => {
   try {
@@ -75,6 +76,22 @@ const readCartFromStorage = (storageKey: string): CartItem[] => {
   }
 };
 
+const getCartSignature = (entries: CartItem[]) =>
+  entries
+    .map((entry) =>
+      [
+        entry.productId,
+        entry.merchantId,
+        entry.shippingSystemId,
+        entry.selectedColor,
+        entry.selectedSize,
+        entry.quantity,
+        entry.salePriceByMarketer,
+        entry.price,
+      ].join(CART_SIGNATURE_SEPARATOR)
+    )
+    .join("||");
+
 export const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,9 +112,7 @@ export const useCart = () => {
       setCartStorageKey((prevKey) => (prevKey === activeKey ? prevKey : activeKey));
       const nextCart = readCartFromStorage(activeKey);
       setCart((prevCart) => {
-        const prevJson = JSON.stringify(prevCart);
-        const nextJson = JSON.stringify(nextCart);
-        return prevJson === nextJson ? prevCart : nextCart;
+        return getCartSignature(prevCart) === getCartSignature(nextCart) ? prevCart : nextCart;
       });
     };
 

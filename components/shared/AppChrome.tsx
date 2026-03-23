@@ -1,10 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { Header } from "@/components/shared/Header";
 import { Footer } from "@/components/shared/Footer";
-import { LiveNotificationToast } from "@/components/admin/live-notification-toast";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+
+const LiveNotificationToast = dynamic(
+  () => import("@/components/admin/live-notification-toast").then((mod) => mod.LiveNotificationToast),
+  { ssr: false }
+);
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,7 +20,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     return (
       <>
         <div
-          className="fixed bottom-4 z-[70] md:top-3 md:bottom-auto"
+          className="fixed bottom-4 z-[70]"
           style={{ insetInlineEnd: "0.75rem" }}
         >
           <LanguageSwitcher />
@@ -29,12 +34,11 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div
-        className="fixed bottom-4 z-[70] md:top-3 md:bottom-auto"
+        className="fixed bottom-4 z-[70]"
         style={{ insetInlineEnd: "0.75rem" }}
       >
         <LanguageSwitcher />
       </div>
-      <LiveNotificationToast />
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />

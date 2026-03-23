@@ -1,42 +1,136 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAdminAuth } from '@/hooks/useAdminAuth';
-import { useApi } from '@/hooks/useApi';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
+import { connectDB } from '@/lib/db';
+import { Notification, Order, User } from '@/lib/models';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { verifyToken } from '@/server/utils/auth';
 
-export default function MarketerDashboardPage() {
-  const router = useRouter();
-  const { admin, token, isLoading } = useAdminAuth();
-  const { get } = useApi();
-  const [data, setData] = useState<any>(null);
-  const unreadNotifications = useUnreadNotifications();
+const DASHBOARD_RECENT_ORDERS_LIMIT = 10;
 
-  useEffect(() => {
-    if (isLoading) return;
-    if (!token) {
-      router.push('/admin/login');
-      return;
+async function getOrderStatusCounts(orderQuery: Record<string, any>) {
+  const rows = await Order.aggregate([
+    { $match: orderQuery },
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+  ]);
+
+  const statusCounts: Record<string, number> = {
+    pending: 0,
+    confirmed: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0,
+  };
+
+  for (const row of rows || []) {
+    const key = String(row?._id || '');
+    if (Object.prototype.hasOwnProperty.call(statusCounts, key)) {
+      statusCounts[key] = Number(row?.count || 0);
     }
-    if (isSubmerchantRole(normalizeRole(admin?.role))) {
-      router.push('/admin/dashboard');
-      return;
-    }
+  }
 
-    get('/admin/dashboard')
-      .then((dashboard) => {
-        setData(dashboard);
-      })
-      .catch((error) => console.error('[v0] Failed to load marketer dashboard', error));
-  }, [admin?.role, get, isLoading, router, token]);
+  return statusCounts;
+}
 
-  if (isLoading || !token || !admin) return null;
+async function getMarketerSettlementSummary(marketerId: string) {
+  const rows = await Order.aggregate([
+    { $match: { marketerId, status: 'delivered' } },
+    {
+      $lookup: {
+        from: 'commissions',
+        localField: '_id',
+        foreignField: 'orderId',
+        as: 'commission',
+      },
+    },
+    { $unwind: { path: '$commission', preserveNullAndEmptyArrays: false } },
+    {
+      $group: {
+        _id: null,
+        pending: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.marketerAmount', 0] },
+                  { $eq: [{ $ifNull: ['$commission.marketerSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.marketerAmount',
+              0,
+            ],
+          },
+        },
+        received: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gt: ['$commission.marketerAmount', 0] },
+                  { $ne: [{ $ifNull: ['$commission.marketerSettlement.receiverMarkedReceivedAt', null] }, null] },
+                ],
+              },
+              '$commission.marketerAmount',
+              0,
+            ],
+          },
+        },
+      },
+    },
+  ]);
+
+  const totals = rows?.[0] || {};
+  return {
+    pending: Number(totals.pending || 0),
+    received: Number(totals.received || 0),
+  };
+}
+
+export default async function MarketerDashboardPage() {
+  const authToken = (await cookies()).get('admin-token')?.value || '';
+  if (!authToken) {
+    redirect('/admin/login');
+  }
+
+  const decoded = verifyToken(authToken) as { id?: string } | null;
+  if (!decoded?.id) {
+    redirect('/admin/login');
+  }
+
+  await connectDB();
+  const viewer = await User.findById(decoded.id).select('_id role active');
+  if (!viewer || !viewer.active) {
+    redirect('/admin/login');
+  }
+
+  if (isSubmerchantRole(normalizeRole(viewer.role))) {
+    redirect('/admin/dashboard');
+  }
+
+  const marketerQuery = { marketerId: viewer._id };
+
+  const [recentOrders, totalOrders, statusCounts, settlement, unreadNotifications] = await Promise.all([
+    Order.find(marketerQuery)
+      .sort({ createdAt: -1 })
+      .limit(DASHBOARD_RECENT_ORDERS_LIMIT)
+      .select('_id orderNumber status customer.name merchantId marketerId createdAt statusHistory updatedAt')
+      .lean(),
+    Order.countDocuments(marketerQuery),
+    getOrderStatusCounts(marketerQuery),
+    getMarketerSettlementSummary(String(viewer._id)),
+    Notification.countDocuments({ userId: viewer._id, read: false }),
+  ]);
+
+  const data = {
+    totalOrders,
+    statusCounts,
+    recentOrders,
+    visibleDuesPending: settlement.pending,
+    visibleDuesReceived: settlement.received,
+  };
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8f5ef,#f3efe8_45%,#faf8f4)]">
@@ -63,32 +157,32 @@ export default function MarketerDashboardPage() {
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <Card className="rounded-3xl border-stone-200 p-6">
             <p className="text-sm text-stone-500">Total orders</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{data?.totalOrders ?? 0}</p>
+            <p className="mt-3 text-3xl font-bold text-stone-900">{data.totalOrders}</p>
           </Card>
           <Card className="rounded-3xl border-stone-200 p-6">
             <p className="text-sm text-stone-500">Pending dues</p>
             <p className="mt-3 text-3xl font-bold text-stone-900">
-              {Number(data?.visibleDuesPending ?? data?.visibleDues ?? 0).toFixed(2)} EGP
+              {Number(data.visibleDuesPending).toFixed(2)} EGP
             </p>
           </Card>
           <Card className="rounded-3xl border-stone-200 p-6">
             <p className="text-sm text-stone-500">Received dues</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{Number(data?.visibleDuesReceived || 0).toFixed(2)} EGP</p>
+            <p className="mt-3 text-3xl font-bold text-stone-900">{Number(data.visibleDuesReceived).toFixed(2)} EGP</p>
           </Card>
           <Card className="rounded-3xl border-stone-200 p-6">
             <p className="text-sm text-stone-500">Pending orders</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{data?.statusCounts?.pending ?? 0}</p>
+            <p className="mt-3 text-3xl font-bold text-stone-900">{data.statusCounts?.pending ?? 0}</p>
           </Card>
         </div>
 
         <Card className="mt-8 rounded-3xl border-stone-200 p-6">
           <h2 className="text-lg font-semibold text-stone-900">Recent order activity</h2>
           <div className="mt-4 space-y-3">
-            {(data?.recentOrders || []).length === 0 ? (
+            {data.recentOrders.length === 0 ? (
               <p className="text-sm text-stone-500">No orders yet.</p>
             ) : (
               data.recentOrders.map((order: any) => (
-                <div key={order._id} className="rounded-2xl bg-stone-50 px-4 py-3">
+                <div key={String(order._id)} className="rounded-2xl bg-stone-50 px-4 py-3">
                   <div className="flex items-center justify-between gap-4">
                     <p className="font-semibold text-stone-900">{order.orderNumber}</p>
                     <div className="flex flex-wrap items-center gap-2">
@@ -106,3 +200,4 @@ export default function MarketerDashboardPage() {
     </div>
   );
 }
+

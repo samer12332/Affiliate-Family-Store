@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import Link from 'next/link';
 import { Heart, Truck, Award, Users } from 'lucide-react';
 import { LocalizedText } from '@/components/i18n/LocalizedText';
 
@@ -15,7 +16,6 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <div>
-      {/* Hero Section */}
       <section className="py-12 sm:py-16 bg-gradient-to-br from-primary/10 via-background to-accent/10">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
@@ -29,7 +29,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Our Story */}
       <section className="py-16 sm:py-24">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-16">
@@ -53,7 +52,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Core Values */}
       <section className="py-16 sm:py-24 bg-muted/50">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -101,7 +99,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Why Choose Us */}
       <section className="py-16 sm:py-24">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-12 text-center">
@@ -111,9 +108,7 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                  ✓
-                </div>
+                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">&#10003;</div>
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -127,9 +122,7 @@ export default function AboutPage() {
 
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                  ✓
-                </div>
+                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">&#10003;</div>
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -143,9 +136,7 @@ export default function AboutPage() {
 
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                  ✓
-                </div>
+                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">&#10003;</div>
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -159,9 +150,7 @@ export default function AboutPage() {
 
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                  ✓
-                </div>
+                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm font-semibold">&#10003;</div>
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -176,7 +165,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="py-16 sm:py-24 bg-primary/10">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-6">
@@ -185,9 +173,9 @@ export default function AboutPage() {
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
             <LocalizedText text="Start shopping today and experience the FamilyStore difference" />
           </p>
-          <a href="/shop" className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-lg font-semibold">
+          <Link href="/shop" className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-lg font-semibold">
             <LocalizedText text="Shop Now" />
-          </a>
+          </Link>
         </div>
       </section>
     </div>

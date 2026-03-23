@@ -9,9 +9,9 @@ import { useCart } from '@/hooks/useCart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
 
 const PAGE_SIZE = 24;
+const PRODUCT_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw';
 
 type MarketplaceProduct = {
   _id: string;
@@ -166,6 +166,15 @@ export default function MarketerMarketplaceClient({
 
   const totalCartItems = getTotalItems();
 
+  const showToast = async (type: 'success' | 'error', message: string) => {
+    const { toast } = await import('sonner');
+    if (type === 'success') {
+      toast.success(message);
+      return;
+    }
+    toast.error(message);
+  };
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8f5ef,#f3efe8_45%,#faf8f4)]">
       <main className="mx-auto max-w-7xl px-4 py-8">
@@ -228,9 +237,10 @@ export default function MarketerMarketplaceClient({
         </Card>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {products.map((product) => {
+          {products.map((product, index) => {
             const merchantName = merchantNameMap.get(String(product.merchantId)) || String(product.merchantName || 'Merchant');
             const merchantPrice = Number(product.merchantPrice || product.price || 0);
+            const isLikelyLcpImage = index === 0 && page === 1;
             return (
               <Card key={product._id} className="overflow-hidden rounded-[28px] border-stone-200 p-0">
                 <div className="relative aspect-square bg-stone-100">
@@ -239,6 +249,9 @@ export default function MarketerMarketplaceClient({
                     alt={product.name}
                     fill
                     className="object-cover"
+                    sizes={PRODUCT_IMAGE_SIZES}
+                    priority={isLikelyLcpImage}
+                    quality={70}
                   />
                 </div>
                 <div className="space-y-3 p-4">
@@ -289,11 +302,11 @@ export default function MarketerMarketplaceClient({
                         });
 
                         if (!result.ok) {
-                          toast.error(result.error);
+                          void showToast('error', result.error);
                           return;
                         }
 
-                        toast.success('Product added to cart');
+                        void showToast('success', 'Product added to cart');
                       }}
                     >
                       Add to cart

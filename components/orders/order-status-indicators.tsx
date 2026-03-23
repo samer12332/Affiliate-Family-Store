@@ -1,5 +1,3 @@
-'use client';
-
 import { cn } from '@/lib/utils';
 
 type AppRole = string;
@@ -90,3 +88,4 @@ export function OrderUpdatePill({ order, role }: { order: any; role?: AppRole })
     </span>
   );
 }
+

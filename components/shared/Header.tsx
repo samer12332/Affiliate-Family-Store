@@ -20,6 +20,7 @@ export function Header() {
   const { t } = useI18n();
   const isMarketerLoggedIn = !isLoading && !!token && admin?.role === "marketer";
   const unreadNotifications = useUnreadNotifications();
+  const totalCartItems = getTotalItems();
 
   const navLinks = [
     { href: "/shop", label: t("Shop") },
@@ -92,15 +93,17 @@ export function Header() {
             )}
             <Link href="/cart" className="relative p-2">
               <ShoppingCart className="w-5 h-5 text-foreground" />
-              {getTotalItems() > 0 && (
+              {totalCartItems > 0 && (
                 <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {getTotalItems()}
+                  {totalCartItems}
                 </span>
               )}
             </Link>
 
             {/* Mobile Menu Button */}
             <button
+              type="button"
+              aria-label={mobileMenuOpen ? t("Close menu") : t("Open menu")}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
             >

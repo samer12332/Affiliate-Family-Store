@@ -79,19 +79,6 @@ const getCachedCategoryData = unstable_cache(
   { revalidate: 300 }
 );
 
-function getSort(sort: string) {
-  switch (sort) {
-    case "price":
-      return [["price", 1], ["createdAt", -1]] as [string, 1 | -1][];
-    case "-price":
-      return [["price", -1], ["createdAt", -1]] as [string, 1 | -1][];
-    case "name":
-      return [["name", 1], ["createdAt", -1]] as [string, 1 | -1][];
-    default:
-      return [["createdAt", -1]] as [string, 1 | -1][];
-  }
-}
-
 function buildCategoryHref(slug: string, params: Record<string, string>) {
   const query = new URLSearchParams(
     Object.entries(params).filter(([, value]) => value)
@@ -250,10 +237,9 @@ export default async function CategoryPage({
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {products.map((product) => (
+                {products.map((product, index) => (
                   <ProductCard
                     key={product._id}
-                    id={product._id}
                     slug={product.slug}
                     name={product.name}
                     price={product.price}
@@ -263,6 +249,7 @@ export default async function CategoryPage({
                     featured={product.featured}
                     onSale={product.onSale}
                     availabilityStatus={product.availabilityStatus}
+                    imagePriority={currentPage === 1 && index === 0}
                   />
                 ))}
               </div>

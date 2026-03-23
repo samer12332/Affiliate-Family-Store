@@ -1,14 +1,11 @@
-"use client";
-
 import Link from "next/link";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heart, ShoppingCart } from "lucide-react";
-import { useState } from "react";
+import { ShoppingCart } from "lucide-react";
+import { FavoriteToggleButton } from "@/components/product/FavoriteToggleButton";
 
 interface ProductCardProps {
-  id: string;
   slug: string;
   name: string;
   price: number;
@@ -18,10 +15,10 @@ interface ProductCardProps {
   featured?: boolean;
   onSale?: boolean;
   availabilityStatus: string;
+  imagePriority?: boolean;
 }
 
 export function ProductCard({
-  id,
   slug,
   name,
   price,
@@ -31,8 +28,8 @@ export function ProductCard({
   featured,
   onSale,
   availabilityStatus,
+  imagePriority = false,
 }: ProductCardProps) {
-  const [isFavorited, setIsFavorited] = useState(false);
   const displayPrice = discountPrice || price;
   const discount = discountPrice ? Math.round(((price - discountPrice) / price) * 100) : 0;
 
@@ -46,6 +43,9 @@ export function ProductCard({
             alt={name}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            quality={70}
+            priority={imagePriority}
           />
         </div>
 
@@ -64,16 +64,7 @@ export function ProductCard({
         </div>
 
         {/* Favorite Button */}
-        <button
-          onClick={() => setIsFavorited(!isFavorited)}
-          className="absolute top-3 right-3 p-2 rounded-full bg-background/80 hover:bg-background transition-colors"
-        >
-          <Heart
-            className={`w-5 h-5 transition-colors ${
-              isFavorited ? "fill-destructive text-destructive" : "text-foreground"
-            }`}
-          />
-        </button>
+        <FavoriteToggleButton productName={name} />
 
         {/* Availability Status */}
         <div className="absolute bottom-3 left-3 right-3">

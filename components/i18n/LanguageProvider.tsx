@@ -11,6 +11,7 @@ type LanguageContextValue = {
 };
 
 const STORAGE_KEY = "family-store-locale";
+const LOCALE_COOKIE_KEY = "family-store-locale";
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
@@ -23,6 +24,13 @@ function applyDocumentLocale(locale: Locale) {
   document.documentElement.dir = dir;
 }
 
+function writeLocaleCookie(locale: Locale) {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.cookie = `${LOCALE_COOKIE_KEY}=${locale}; Path=/; SameSite=Lax; Max-Age=31536000`;
+}
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
 
@@ -32,8 +40,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
     const stored = window.localStorage.getItem(STORAGE_KEY);
     const initialLocale: Locale = stored === "ar" ? "ar" : "en";
-    setLocaleState(initialLocale);
+    setLocaleState((prev) => (prev === initialLocale ? prev : initialLocale));
     applyDocumentLocale(initialLocale);
+    writeLocaleCookie(initialLocale);
   }, []);
 
   const setLocale = useCallback((nextLocale: Locale) => {
@@ -42,6 +51,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.setItem(STORAGE_KEY, nextLocale);
     }
     applyDocumentLocale(nextLocale);
+    writeLocaleCookie(nextLocale);
   }, []);
 
   const value = useMemo<LanguageContextValue>(
@@ -64,4 +74,3 @@ export function useI18n() {
   }
   return context;
 }
-
