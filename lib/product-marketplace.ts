@@ -32,10 +32,8 @@ const getCachedPublicCategoryProducts = unstable_cache(
     nextPage: number,
     nextLimit: number
   ) => {
-    await syncAllMarketplaceProductSnapshots();
-
     const query: any = {
-      marketplaceVisible: true,
+      $or: [{ marketplaceVisible: true }, { marketplaceVisible: { $exists: false } }],
       category: nextCategory,
     };
     if (nextGender) {
