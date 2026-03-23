@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Image from 'next/image';
 import { use, useEffect, useMemo, useState } from 'react';
@@ -250,7 +250,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
-                            {product.category}{product.gender ? ` � ${product.gender}` : ''}
+                            {product.category}{product.gender ? ` • ${product.gender}` : ''}
                           </p>
                           <h3 className="mt-1 truncate text-[15px] font-semibold text-stone-900">{product.name}</h3>
                         </div>
