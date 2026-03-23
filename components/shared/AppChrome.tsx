@@ -19,12 +19,14 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   if (isAdminRoute) {
     return (
       <>
-        <div
-          className="fixed bottom-4 z-[70]"
-          style={{ insetInlineEnd: "0.75rem" }}
-        >
-          <LanguageSwitcher />
-        </div>
+        {!isAdminLogin && (
+          <div
+            className="fixed bottom-4 z-[70]"
+            style={{ insetInlineEnd: "0.75rem" }}
+          >
+            <LanguageSwitcher />
+          </div>
+        )}
         {!isAdminLogin && <LiveNotificationToast />}
         <main className="flex-1">{children}</main>
       </>
