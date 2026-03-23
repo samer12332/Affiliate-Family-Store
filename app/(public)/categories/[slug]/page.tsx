@@ -57,6 +57,26 @@ const CATEGORY_FALLBACKS: Record<string, CategoryData> = {
   },
 };
 
+const getCachedCategoryData = unstable_cache(
+  async (nextSlug: string): Promise<CategoryData | null> => {
+    await connectDB();
+    const category: any = await Category.findOne({ slug: nextSlug }).lean();
+    if (category) {
+      return {
+        _id: category._id?.toString?.(),
+        name: category.name,
+        slug: category.slug,
+        description: category.description || "",
+        image: category.image || "",
+      };
+    }
+
+    return CATEGORY_FALLBACKS[nextSlug] ?? null;
+  },
+  ["category-data"],
+  { revalidate: 300 }
+);
+
 function getSort(sort: string) {
   switch (sort) {
     case "price":
@@ -81,25 +101,7 @@ async function getCategoryData(slug: string): Promise<CategoryData | null> {
   if (CATEGORY_FALLBACKS[slug]) {
     return CATEGORY_FALLBACKS[slug];
   }
-  return unstable_cache(
-    async (nextSlug: string) => {
-      await connectDB();
-      const category: any = await Category.findOne({ slug: nextSlug }).lean();
-      if (category) {
-        return {
-          _id: category._id?.toString?.(),
-          name: category.name,
-          slug: category.slug,
-          description: category.description || "",
-          image: category.image || "",
-        };
-      }
-
-      return CATEGORY_FALLBACKS[nextSlug] ?? null;
-    },
-    ["category-data"],
-    { revalidate: 300 }
-  )(slug);
+  return getCachedCategoryData(slug);
 }
 
 export function generateStaticParams() {

@@ -9,14 +9,15 @@ import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
 const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+let ensuredOwnerPromise: Promise<void> | null = null;
 
 async function ensureOwnerAccount() {
   const normalizedEmail = OWNER_EMAIL.toLowerCase();
-  let user = await User.findOne({ email: normalizedEmail });
+  let user = await User.findOne({ email: normalizedEmail }).select('_id');
 
   if (!user) {
     const hashedPassword = await bcryptjs.hash(OWNER_PASSWORD, 10);
-    user = await User.create({
+    await User.create({
       name: OWNER_NAME,
       email: normalizedEmail,
       password: hashedPassword,
@@ -30,13 +31,23 @@ async function ensureOwnerAccount() {
     });
   }
 
-  return user;
+}
+
+async function ensureOwnerAccountOnce() {
+  if (!ensuredOwnerPromise) {
+    ensuredOwnerPromise = ensureOwnerAccount().catch((error) => {
+      ensuredOwnerPromise = null;
+      throw error;
+    });
+  }
+
+  return ensuredOwnerPromise;
 }
 
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    await ensureOwnerAccount();
+    await ensureOwnerAccountOnce();
 
     const requestIp = getRequestIp('unknown', request.headers.get('x-forwarded-for'));
     const rate = checkRateLimit(`login:${requestIp}`, 10, 60_000);
@@ -57,7 +68,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({ email: normalizedEmail })
+      .select('_id name email password role active isProtected mainMerchantId createdByUserId merchantProfile marketerProfile createdAt');
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
