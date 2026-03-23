@@ -46,12 +46,15 @@ function getMarketplaceScopeKey(user: any) {
 }
 
 const getCachedMarketplaceListing = unstable_cache(
-  async (scopeKey: string, category: string | null, sort: string, limit: number) => {
+  async (scopeKey: string, merchantId: string | null, category: string | null, sort: string, limit: number) => {
     await connectDB();
 
     const query: any = { marketplaceVisible: true };
     if (scopeKey.startsWith('marketer:') && scopeKey !== 'marketer:all') {
       query.merchantMainMerchantId = scopeKey.slice('marketer:'.length);
+    }
+    if (merchantId) {
+      query.merchantId = merchantId;
     }
     if (category) {
       query.category = category;
@@ -353,12 +356,17 @@ export async function getMarketplaceProducts({
   const shouldUseCachedListing =
     page === 1 &&
     !includeTotal &&
-    !merchantId &&
     !search &&
     isMarketerRole(actorRole);
 
   if (shouldUseCachedListing) {
-    return getCachedMarketplaceListing(getMarketplaceScopeKey(user), category || null, sort, limit);
+    return getCachedMarketplaceListing(
+      getMarketplaceScopeKey(user),
+      merchantId || null,
+      category || null,
+      sort,
+      limit
+    );
   }
 
   const baseQuery = await getMarketplaceBaseQueryForUser(user);

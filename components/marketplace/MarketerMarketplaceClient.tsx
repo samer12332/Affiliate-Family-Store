@@ -84,6 +84,7 @@ export default function MarketerMarketplaceClient({
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     const query = new URLSearchParams({
       limit: String(PAGE_SIZE),
       page: String(page),
@@ -99,6 +100,7 @@ export default function MarketerMarketplaceClient({
     fetch(`/api/products?${query.toString()}`, {
       method: 'GET',
       credentials: 'same-origin',
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${authToken}`,
       },
@@ -117,7 +119,7 @@ export default function MarketerMarketplaceClient({
         setHasMore(Boolean(productsRes?.hasMore));
       })
       .catch((error) => {
-        if (!cancelled) {
+        if (!cancelled && error?.name !== 'AbortError') {
           console.error('[v0] Failed to load marketplace products', error);
           if (page === 1) {
             setProducts([]);
@@ -133,6 +135,7 @@ export default function MarketerMarketplaceClient({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [authToken, categoryFilter, deferredSearch, merchantFilter, page]);
 
