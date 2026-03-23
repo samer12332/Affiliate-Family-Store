@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { Card } from '@/components/ui/card';
@@ -37,6 +38,9 @@ export default function MarketerMarketplaceClient({
   initialProducts: MarketplaceProduct[];
   initialHasMore: boolean;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { addItem, getTotalItems } = useCart();
   const [products, setProducts] = useState<MarketplaceProduct[]>(initialProducts);
   const [merchantFilter, setMerchantFilter] = useState('all');
@@ -47,6 +51,27 @@ export default function MarketerMarketplaceClient({
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const skippedInitialFetch = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get('focusSearch') !== '1') {
+      return;
+    }
+
+    const nextFrame = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('focusSearch');
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+
+    return () => {
+      window.cancelAnimationFrame(nextFrame);
+    };
+  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     setPage(1);
@@ -170,6 +195,7 @@ export default function MarketerMarketplaceClient({
         <Card className="mb-6 rounded-3xl border-stone-200 p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_220px_220px]">
             <Input
+              ref={searchInputRef}
               placeholder="Search by product name or SKU"
               value={search}
               onChange={(event) => setSearch(event.target.value)}

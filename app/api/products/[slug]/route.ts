@@ -1,6 +1,7 @@
 import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem } from '@/lib/models';
+import { syncMarketplaceProductSnapshotForMerchant } from '@/lib/product-marketplace';
 import { isMainMerchantRole } from '@/lib/roles';
 import { isValidObjectId, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
@@ -177,6 +178,7 @@ export async function PUT(
     }
 
     const updated = await Product.findByIdAndUpdate(product._id, update, { new: true });
+    await syncMarketplaceProductSnapshotForMerchant(product.merchantId.toString());
     return NextResponse.json({ product: updated });
   } catch (error: any) {
     console.error('[v0] Product update error:', error);

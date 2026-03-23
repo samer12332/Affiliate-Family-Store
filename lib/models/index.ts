@@ -170,6 +170,14 @@ const productSchema = new mongoose.Schema(
       ref: 'ShippingSystem',
       default: null,
     },
+    merchantDisplayName: { type: String, default: '', trim: true },
+    merchantMainMerchantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    marketplaceVisible: { type: Boolean, default: true, index: true },
     internalNotes: String,
   },
   { timestamps: true }
@@ -180,6 +188,11 @@ productSchema.index({ category: 1 });
 productSchema.index({ category: 1, createdAt: -1 });
 productSchema.index({ category: 1, gender: 1, availabilityStatus: 1, createdAt: -1 });
 productSchema.index({ merchantId: 1, category: 1, createdAt: -1 });
+productSchema.index({ marketplaceVisible: 1, createdAt: -1 });
+productSchema.index({ marketplaceVisible: 1, merchantMainMerchantId: 1, createdAt: -1 });
+productSchema.index({ marketplaceVisible: 1, category: 1, createdAt: -1 });
+productSchema.index({ marketplaceVisible: 1, category: 1, gender: 1, availabilityStatus: 1, createdAt: -1 });
+productSchema.index({ name: 'text', sku: 'text', merchantDisplayName: 'text' });
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -342,7 +355,8 @@ if (existingUserModel) {
 const existingProductModel = mongoose.models.Product as mongoose.Model<any> | undefined;
 if (existingProductModel) {
   const hasStockPath = Boolean(existingProductModel.schema.path('stock'));
-  if (!hasStockPath) {
+  const hasMerchantDisplayNamePath = Boolean(existingProductModel.schema.path('merchantDisplayName'));
+  if (!hasStockPath || !hasMerchantDisplayNamePath) {
     mongoose.deleteModel('Product');
   }
 }

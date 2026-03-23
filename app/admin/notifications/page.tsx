@@ -39,18 +39,18 @@ export default function NotificationsPage() {
   if (isLoading || !token || !admin) return null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen overflow-x-hidden bg-background">
       <main className="mx-auto max-w-5xl px-4 py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
             <p className="mt-2 text-sm text-muted-foreground">Unread: {unreadTotal}</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-            <div className="w-full sm:w-auto">
+          <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+            <div className="w-full min-w-0 sm:w-auto">
               <Button
                 variant="outline"
-                className="w-full whitespace-normal sm:w-auto"
+                className="w-full min-w-0 whitespace-normal break-words text-center sm:w-auto"
                 onClick={async () => {
                   await request('/notifications', {
                     method: 'PATCH',
@@ -62,13 +62,13 @@ export default function NotificationsPage() {
                 Mark all read
               </Button>
             </div>
-            <Link href="/admin/dashboard" className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full whitespace-normal sm:w-auto">Back to dashboard</Button>
+            <Link href="/admin/dashboard" className="w-full min-w-0 sm:w-auto">
+              <Button variant="outline" className="w-full min-w-0 whitespace-normal break-words text-center sm:w-auto">Back to dashboard</Button>
             </Link>
           </div>
         </div>
 
-        <Card className="rounded-3xl border-stone-200 p-6">
+        <Card className="min-w-0 rounded-3xl border-stone-200 p-6">
           {loadingItems ? (
             <p className="text-sm text-muted-foreground">Loading notifications...</p>
           ) : items.length === 0 ? (
@@ -130,4 +130,3 @@ export default function NotificationsPage() {
     </div>
   );
 }
-

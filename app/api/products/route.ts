@@ -1,7 +1,8 @@
 import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem, User } from '@/lib/models';
-import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { getMarketplaceProducts, getProductSort, syncMarketplaceProductSnapshotForMerchant } from '@/lib/product-marketplace';
+import { isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { escapeRegex, isValidObjectId, parsePositiveInt, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
@@ -42,42 +43,6 @@ async function generateUniqueSku(base: string): Promise<string> {
   return candidate;
 }
 
-async function getLegacyMainMerchantIds() {
-  return (await User.distinct('mainMerchantId', { mainMerchantId: { $ne: null } }))
-    .filter(Boolean)
-    .map((id: any) => id?.toString?.() || String(id));
-}
-
-async function getEligibleSubmerchantIds(mainMerchantId?: any) {
-  const legacyMainMerchantIds = await getLegacyMainMerchantIds();
-  const query: any = {
-    active: true,
-    $or: [
-      { role: 'submerchant' },
-      { role: 'merchant', _id: { $nin: legacyMainMerchantIds } },
-    ],
-  };
-
-  if (mainMerchantId) {
-    query.mainMerchantId = mainMerchantId;
-  }
-
-  return (await User.find(query).distinct('_id')).map((id: any) => id?.toString?.() || String(id));
-}
-
-function getProductSort(sort: string) {
-  switch (sort) {
-    case 'price':
-      return [['price', 1], ['createdAt', -1]] as [string, 1 | -1][];
-    case '-price':
-      return [['price', -1], ['createdAt', -1]] as [string, 1 | -1][];
-    case 'name':
-      return [['name', 1], ['createdAt', -1]] as [string, 1 | -1][];
-    default:
-      return [['createdAt', -1]] as [string, 1 | -1][];
-  }
-}
-
 function shapeProductListItems(products: any[], fieldset: string) {
   return products.map((product) => {
     const firstImage = Array.isArray(product.images) && product.images.length > 0
@@ -88,7 +53,7 @@ function shapeProductListItems(products: any[], fieldset: string) {
       return {
         _id: product._id,
         merchantId: product.merchantId,
-        merchantName: product.merchantName || 'Merchant',
+        merchantName: product.merchantName || product.merchantDisplayName || 'Merchant',
         images: firstImage,
         name: product.name,
         slug: product.slug,
@@ -154,15 +119,36 @@ export async function GET(request: NextRequest) {
 
     const actorRole = normalizeRole(authUser?.role);
 
+    if (fieldset === 'marketplace') {
+      if (!authUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      if (merchantIdParam && !isValidObjectId(merchantIdParam)) {
+        return NextResponse.json({ error: 'Invalid submerchant ID' }, { status: 400 });
+      }
+
+      const marketplaceData = await getMarketplaceProducts({
+        user: authUser,
+        merchantId: merchantIdParam,
+        category,
+        sort,
+        search,
+        page,
+        limit,
+        includeTotal,
+      });
+
+      return NextResponse.json({
+        products: shapeProductListItems(marketplaceData.products, fieldset),
+        total: marketplaceData.total,
+        hasMore: marketplaceData.hasMore,
+        pagination: marketplaceData.pagination,
+      });
+    }
+
     if (merchantIdParam) {
       if (!isValidObjectId(merchantIdParam)) {
         return NextResponse.json({ error: 'Invalid submerchant ID' }, { status: 400 });
-      }
-      if (authUser && isMarketerRole(actorRole)) {
-        const eligibleIds = await getEligibleSubmerchantIds(authUser.mainMerchantId || undefined);
-        if (!eligibleIds.includes(String(merchantIdParam))) {
-          return NextResponse.json({ error: 'You cannot access this submerchant products' }, { status: 403 });
-        }
       }
 
       query.merchantId = merchantIdParam;
@@ -175,9 +161,6 @@ export async function GET(request: NextRequest) {
         active: true,
       }).distinct('_id');
       query.merchantId = { $in: submerchantIds };
-    } else if (authUser && isMarketerRole(actorRole)) {
-      const submerchantIds = await getEligibleSubmerchantIds(authUser.mainMerchantId || undefined);
-      query.merchantId = { $in: submerchantIds };
     }
 
     const projection =
@@ -187,60 +170,13 @@ export async function GET(request: NextRequest) {
 
     const queryLimit = includeTotal ? limit : limit + 1;
 
-    const productsPromise =
-      fieldset === 'marketplace'
-        ? Product.aggregate([
-            { $match: query },
-            { $sort: Object.fromEntries(getProductSort(sort)) },
-            { $skip: skip },
-            { $limit: queryLimit },
-            {
-              $lookup: {
-                from: 'users',
-                localField: 'merchantId',
-                foreignField: '_id',
-                as: 'merchant',
-              },
-            },
-            {
-              $addFields: {
-                merchantName: {
-                  $let: {
-                    vars: {
-                      merchantDoc: { $arrayElemAt: ['$merchant', 0] },
-                    },
-                    in: {
-                      $ifNull: ['$$merchantDoc.merchantProfile.storeName', '$$merchantDoc.name'],
-                    },
-                  },
-                },
-              },
-            },
-            {
-              $project: {
-                _id: 1,
-                merchantId: 1,
-                merchantName: 1,
-                name: 1,
-                slug: 1,
-                description: 1,
-                merchantPrice: 1,
-                price: 1,
-                suggestedCommission: 1,
-                images: 1,
-                shippingSystemId: 1,
-                stock: 1,
-                category: 1,
-              },
-            },
-          ]).exec()
-        : (() => {
-            const listingQuery = Product.find(query).sort(getProductSort(sort)).limit(queryLimit).skip(skip);
-            if (projection) {
-              listingQuery.select(projection);
-            }
-            return listingQuery.lean().exec();
-          })();
+    const productsPromise = (() => {
+      const listingQuery = Product.find(query).sort(getProductSort(sort)).limit(queryLimit).skip(skip);
+      if (projection) {
+        listingQuery.select(projection);
+      }
+      return listingQuery.lean().exec();
+    })();
 
     const [products, total] = await Promise.all([
       productsPromise,
@@ -372,8 +308,13 @@ export async function POST(request: NextRequest) {
       featured: Boolean(body?.featured),
       onSale: Boolean(body?.onSale),
       brand: merchant.merchantProfile?.storeName || merchant.name,
+      merchantDisplayName: merchant.merchantProfile?.storeName || merchant.name,
+      merchantMainMerchantId: merchant.mainMerchantId || null,
+      marketplaceVisible: true,
       sku: finalSku,
     });
+
+    await syncMarketplaceProductSnapshotForMerchant(merchantId);
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (error: any) {

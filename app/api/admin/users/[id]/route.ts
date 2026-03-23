@@ -1,6 +1,7 @@
 import { requireRole, sanitizeUser } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
+import { syncMarketplaceProductSnapshotForMerchant } from '@/lib/product-marketplace';
 import { isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { isValidObjectId, safeTrim } from '@/lib/validation';
 import bcryptjs from 'bcryptjs';
@@ -117,6 +118,9 @@ export async function PATCH(
     }
 
     const updated = await User.findByIdAndUpdate(id, update, { new: true });
+    if (updated && isSubmerchantRole(normalizeRole(updated.role))) {
+      await syncMarketplaceProductSnapshotForMerchant(updated._id.toString());
+    }
     return NextResponse.json({ user: sanitizeUser(updated) });
   } catch (error: any) {
     console.error('[v0] User update API error:', error);

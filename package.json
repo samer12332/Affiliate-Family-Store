@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "benchmark:marketplace": "node scripts/benchmark-marketplace.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

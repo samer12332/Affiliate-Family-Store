@@ -93,18 +93,16 @@ async function getProducts(categoryName: string, gender: string, status: string,
   if (status) query.availabilityStatus = status;
 
   const skip = Math.max(page - 1, 0) * PAGE_SIZE;
-  const [products, total] = await Promise.all([
-    Product.find(query)
-      .select("_id name slug price discountPrice images category gender featured onSale availabilityStatus")
-      .sort(getSort(sort))
-      .skip(skip)
-      .limit(PAGE_SIZE)
-      .lean(),
-    Product.countDocuments(query),
-  ]);
+  const products = await Product.find(query)
+    .select("_id name slug price discountPrice images category gender featured onSale availabilityStatus")
+    .sort(getSort(sort))
+    .skip(skip)
+    .limit(PAGE_SIZE + 1)
+    .lean();
+  const normalizedProducts = products.slice(0, PAGE_SIZE);
 
   return {
-    products: products.map((product: any) => ({
+    products: normalizedProducts.map((product: any) => ({
       _id: product._id.toString(),
       name: product.name,
       slug: product.slug,
@@ -117,8 +115,7 @@ async function getProducts(categoryName: string, gender: string, status: string,
       onSale: Boolean(product.onSale),
       availabilityStatus: product.availabilityStatus,
     })) as ProductItem[],
-    total,
-    pages: Math.max(Math.ceil(total / PAGE_SIZE), 1),
+    hasMore: products.length > PAGE_SIZE,
   };
 }
 
@@ -152,7 +149,7 @@ export default async function CategoryPage({
     );
   }
 
-  const { products, total, pages } = await getProducts(category.name, genderParam, statusParam, sortParam, currentPage);
+  const { products, hasMore } = await getProducts(category.name, genderParam, statusParam, sortParam, currentPage);
 
   return (
     <div>
@@ -278,7 +275,7 @@ export default async function CategoryPage({
             {products.length > 0 && (
               <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-border bg-card/70 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, total)} to {Math.min(currentPage * PAGE_SIZE, total)} of {total} products
+                  Page {currentPage}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {currentPage > 1 && (
@@ -286,7 +283,7 @@ export default async function CategoryPage({
                       <Button variant="outline">Previous</Button>
                     </Link>
                   )}
-                  {currentPage < pages && (
+                  {hasMore && (
                     <Link href={buildCategoryHref(slug, { ...baseQuery, page: String(currentPage + 1) })}>
                       <Button>Next</Button>
                     </Link>

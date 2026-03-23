@@ -132,6 +132,19 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
+            {isMarketerLoggedIn && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  logout();
+                  router.push("/admin/login");
+                }}
+                className="block w-full rounded-lg border border-border px-3 py-2 text-left text-foreground transition-colors hover:bg-muted"
+              >
+                {t("Logout")}
+              </button>
+            )}
           </nav>
         )}
       </div>
