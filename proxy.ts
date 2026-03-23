@@ -4,6 +4,14 @@ import type { NextRequest } from 'next/server';
 const LOGIN_PATH = '/admin/login';
 const MARKETER_REGISTER_PATH = '/register-marketer';
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const ALLOWED_INLINE_SCRIPT_HASHES = [
+  "'sha256-OBTN3RiyCV4Bq7dFqZ5a2pAXjnCcCYeTJMO2I/LYKeo='",
+  "'sha256-jmMfAqYM9Q+qBFPN3sBNSUPhFNaYXOCi4VjHmjlwBak='",
+  "'sha256-tB+I6MJWu9JpjUZ9Ak5D86sLz+DQdQXKOYf6V1U4SfE='",
+  "'sha256-5Aln0h5eK7yRC6JdXC8YKIPycRwNk7Xzhuo+UTD3WIU='",
+  "'sha256-0jehuMSZMVl5UFN83FAi7dJBdKypslLTW/Sw49Gh4/Q='",
+  "'sha256-+40T5d+tKSaNOZ+wB+6mMmRzMtcuxFXOTqXZQB6Q0jM='",
+];
 
 function createNonce() {
   return crypto.randomUUID();
@@ -12,7 +20,7 @@ function createNonce() {
 function buildContentSecurityPolicy(nonce: string) {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}' ${ALLOWED_INLINE_SCRIPT_HASHES.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
