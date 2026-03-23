@@ -1,9 +1,12 @@
 import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import { connectDB } from "@/lib/db";
-import { Category, Product } from "@/lib/models";
+import { Category } from "@/lib/models";
 import { AVAILABILITY_STATUS, GENDER_TYPES } from "@/lib/constants";
+import { getPublicCategoryProducts } from "@/lib/product-marketplace";
 import Link from "next/link";
+
+export const revalidate = 60;
 
 interface ProductItem {
   _id: string;
@@ -73,6 +76,10 @@ function buildCategoryHref(slug: string, params: Record<string, string>) {
 }
 
 async function getCategoryData(slug: string): Promise<CategoryData | null> {
+  if (CATEGORY_FALLBACKS[slug]) {
+    return CATEGORY_FALLBACKS[slug];
+  }
+
   const category: any = await Category.findOne({ slug }).lean();
   if (category) {
     return {
@@ -86,39 +93,6 @@ async function getCategoryData(slug: string): Promise<CategoryData | null> {
 
   return CATEGORY_FALLBACKS[slug] ?? null;
 }
-
-async function getProducts(categoryName: string, gender: string, status: string, sort: string, page: number) {
-  const query: Record<string, any> = { category: categoryName };
-  if (gender) query.gender = gender;
-  if (status) query.availabilityStatus = status;
-
-  const skip = Math.max(page - 1, 0) * PAGE_SIZE;
-  const products = await Product.find(query)
-    .select("_id name slug price discountPrice images category gender featured onSale availabilityStatus")
-    .sort(getSort(sort))
-    .skip(skip)
-    .limit(PAGE_SIZE + 1)
-    .lean();
-  const normalizedProducts = products.slice(0, PAGE_SIZE);
-
-  return {
-    products: normalizedProducts.map((product: any) => ({
-      _id: product._id.toString(),
-      name: product.name,
-      slug: product.slug,
-      price: Number(product.price || 0),
-      discountPrice: product.discountPrice !== undefined ? Number(product.discountPrice) : undefined,
-      images: Array.isArray(product.images) && product.images.length > 0 ? [product.images[0]] : [],
-      category: product.category,
-      gender: product.gender,
-      featured: Boolean(product.featured),
-      onSale: Boolean(product.onSale),
-      availabilityStatus: product.availabilityStatus,
-    })) as ProductItem[],
-    hasMore: products.length > PAGE_SIZE,
-  };
-}
-
 export default async function CategoryPage({
   params,
   searchParams,
@@ -149,7 +123,14 @@ export default async function CategoryPage({
     );
   }
 
-  const { products, hasMore } = await getProducts(category.name, genderParam, statusParam, sortParam, currentPage);
+  const { products, hasMore } = await getPublicCategoryProducts({
+    category: category.name,
+    gender: genderParam || undefined,
+    status: statusParam || undefined,
+    sort: sortParam,
+    page: currentPage,
+    limit: PAGE_SIZE,
+  });
 
   return (
     <div>

@@ -36,7 +36,7 @@ export default function AdminLogin() {
       const result = await login(email, password);
       if (result.success) {
         const role = result.admin?.role;
-        router.push(role === 'marketer' ? '/merchant-directory' : '/admin/dashboard');
+        router.push(role === 'marketer' ? '/shop' : '/admin/dashboard');
       } else {
         setError(result.error || t('Invalid email or password'));
       }

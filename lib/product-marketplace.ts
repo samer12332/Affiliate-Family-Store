@@ -252,3 +252,62 @@ export async function getMarketplaceProducts({
     },
   };
 }
+
+export async function getPublicCategoryProducts({
+  category,
+  gender,
+  status,
+  sort,
+  page = 1,
+  limit = PAGE_SIZE_DEFAULT,
+}: {
+  category: string;
+  gender?: string;
+  status?: string;
+  sort: string;
+  page?: number;
+  limit?: number;
+}) {
+  await syncAllMarketplaceProductSnapshots();
+
+  const query: any = {
+    marketplaceVisible: true,
+    category,
+  };
+  if (gender) {
+    query.gender = gender;
+  }
+  if (status) {
+    query.availabilityStatus = status;
+  }
+
+  const skip = Math.max(page - 1, 0) * limit;
+  const products = await Product.find(query)
+    .sort(Object.fromEntries(getProductSort(sort)))
+    .skip(skip)
+    .limit(limit + 1)
+    .select(
+      '_id merchantId merchantDisplayName name slug description merchantPrice price discountPrice suggestedCommission images shippingSystemId stock category gender featured onSale availabilityStatus'
+    )
+    .lean()
+    .exec();
+
+  const normalizedProducts = products.slice(0, limit);
+
+  return {
+    products: normalizedProducts.map((product: any) => ({
+      _id: String(product._id),
+      name: product.name,
+      slug: product.slug,
+      price: Number(product.price || 0),
+      discountPrice: product.discountPrice !== undefined ? Number(product.discountPrice) : undefined,
+      images: Array.isArray(product.images) && product.images.length > 0 ? [product.images[0]] : [],
+      category: product.category,
+      gender: product.gender,
+      featured: Boolean(product.featured),
+      onSale: Boolean(product.onSale),
+      availabilityStatus: product.availabilityStatus,
+    })),
+    hasMore: products.length > limit,
+  };
+}
