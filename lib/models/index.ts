@@ -190,8 +190,11 @@ productSchema.index({ category: 1, gender: 1, availabilityStatus: 1, createdAt: 
 productSchema.index({ merchantId: 1, category: 1, createdAt: -1 });
 productSchema.index({ marketplaceVisible: 1, createdAt: -1 });
 productSchema.index({ marketplaceVisible: 1, merchantMainMerchantId: 1, createdAt: -1 });
+productSchema.index({ marketplaceVisible: 1, merchantMainMerchantId: 1, category: 1, createdAt: -1 });
 productSchema.index({ marketplaceVisible: 1, category: 1, createdAt: -1 });
 productSchema.index({ marketplaceVisible: 1, category: 1, gender: 1, availabilityStatus: 1, createdAt: -1 });
+productSchema.index({ marketplaceVisible: 1, category: 1, price: 1, createdAt: -1 });
+productSchema.index({ marketplaceVisible: 1, category: 1, name: 1, createdAt: -1 });
 productSchema.index({ name: 'text', sku: 'text', merchantDisplayName: 'text' });
 
 const orderItemSchema = new mongoose.Schema(

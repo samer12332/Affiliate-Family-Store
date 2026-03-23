@@ -11,6 +11,8 @@ import { verifyToken } from '@/server/utils/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 export type AppRole = ExtendedAppRole;
+const AUTH_USER_PROJECTION =
+  '_id name email role active isProtected mainMerchantId createdByUserId merchantProfile marketerProfile createdAt';
 
 export async function getAuthUser(request: NextRequest) {
   const header = request.headers.get('authorization') || '';
@@ -24,7 +26,7 @@ export async function getAuthUser(request: NextRequest) {
     return null;
   }
 
-  const user = await User.findById(decoded.id);
+  const user = await User.findById(decoded.id).select(AUTH_USER_PROJECTION);
   if (!user || !user.active) {
     return null;
   }

@@ -4,9 +4,24 @@ import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } 
 import { safeTrim } from '@/lib/validation';
 
 const PAGE_SIZE_DEFAULT = 24;
+const SNAPSHOT_SYNC_COOLDOWN_MS = 15 * 60 * 1000;
 
 let lastSnapshotSyncAt = 0;
 let snapshotSyncPromise: Promise<void> | null = null;
+
+async function hasLegacyMarketplaceSnapshots() {
+  const product = await Product.findOne({
+    $or: [
+      { merchantDisplayName: { $exists: false } },
+      { merchantMainMerchantId: { $exists: false } },
+      { marketplaceVisible: { $exists: false } },
+    ],
+  })
+    .select('_id')
+    .lean();
+
+  return Boolean(product);
+}
 
 const getCachedPublicCategoryProducts = unstable_cache(
   async (
@@ -36,7 +51,7 @@ const getCachedPublicCategoryProducts = unstable_cache(
       .skip(skip)
       .limit(nextLimit + 1)
       .select(
-        '_id merchantId merchantDisplayName name slug description merchantPrice price discountPrice suggestedCommission images shippingSystemId stock category gender featured onSale availabilityStatus'
+        '_id name slug price discountPrice images category gender featured onSale availabilityStatus'
       )
       .lean()
       .exec();
@@ -138,7 +153,8 @@ export async function syncMarketplaceProductSnapshotForMerchant(merchantId: stri
 }
 
 export async function syncAllMarketplaceProductSnapshots(force = false) {
-  if (!force && lastSnapshotSyncAt > 0) {
+  const now = Date.now();
+  if (!force && lastSnapshotSyncAt > 0 && now - lastSnapshotSyncAt < SNAPSHOT_SYNC_COOLDOWN_MS) {
     return;
   }
 
@@ -147,6 +163,14 @@ export async function syncAllMarketplaceProductSnapshots(force = false) {
   }
 
   snapshotSyncPromise = (async () => {
+    if (!force) {
+      const needsSync = await hasLegacyMarketplaceSnapshots();
+      if (!needsSync) {
+        lastSnapshotSyncAt = Date.now();
+        return;
+      }
+    }
+
     const merchants = await User.find({ role: { $in: ['submerchant', 'merchant'] } })
       .select('_id role name mainMerchantId merchantProfile.storeName')
       .lean();

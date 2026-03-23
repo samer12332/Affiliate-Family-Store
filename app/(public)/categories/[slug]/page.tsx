@@ -60,7 +60,9 @@ const CATEGORY_FALLBACKS: Record<string, CategoryData> = {
 const getCachedCategoryData = unstable_cache(
   async (nextSlug: string): Promise<CategoryData | null> => {
     await connectDB();
-    const category: any = await Category.findOne({ slug: nextSlug }).lean();
+    const category: any = await Category.findOne({ slug: nextSlug })
+      .select('_id name slug description image')
+      .lean();
     if (category) {
       return {
         _id: category._id?.toString?.(),

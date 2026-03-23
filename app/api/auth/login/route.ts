@@ -9,6 +9,8 @@ import bcryptjs from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
 const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+const LOGIN_USER_PROJECTION =
+  '_id name email password role active isProtected mainMerchantId createdByUserId merchantProfile marketerProfile createdAt';
 let ensuredOwnerPromise: Promise<void> | null = null;
 
 async function ensureOwnerAccount() {
@@ -68,8 +70,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const user = await User.findOne({ email: normalizedEmail })
-      .select('_id name email password role active isProtected mainMerchantId createdByUserId merchantProfile marketerProfile createdAt');
+    const user: any = await User.findOne({ email: normalizedEmail })
+      .select(LOGIN_USER_PROJECTION)
+      .lean();
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -85,8 +88,10 @@ export async function POST(request: NextRequest) {
       // Legacy fallback: if a plain-text password exists, migrate immediately to bcrypt hash.
       isPasswordValid = submittedPassword === storedPassword;
       if (isPasswordValid) {
-        user.password = await bcryptjs.hash(submittedPassword, 10);
-        await user.save();
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { password: await bcryptjs.hash(submittedPassword, 10) } }
+        );
       }
     }
 
