@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { Product, User } from '@/lib/models';
 import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { safeTrim } from '@/lib/validation';
@@ -268,46 +269,59 @@ export async function getPublicCategoryProducts({
   page?: number;
   limit?: number;
 }) {
-  await syncAllMarketplaceProductSnapshots();
+  return unstable_cache(
+    async (
+      nextCategory: string,
+      nextGender: string | undefined,
+      nextStatus: string | undefined,
+      nextSort: string,
+      nextPage: number,
+      nextLimit: number
+    ) => {
+      await syncAllMarketplaceProductSnapshots();
 
-  const query: any = {
-    marketplaceVisible: true,
-    category,
-  };
-  if (gender) {
-    query.gender = gender;
-  }
-  if (status) {
-    query.availabilityStatus = status;
-  }
+      const query: any = {
+        marketplaceVisible: true,
+        category: nextCategory,
+      };
+      if (nextGender) {
+        query.gender = nextGender;
+      }
+      if (nextStatus) {
+        query.availabilityStatus = nextStatus;
+      }
 
-  const skip = Math.max(page - 1, 0) * limit;
-  const products = await Product.find(query)
-    .sort(Object.fromEntries(getProductSort(sort)))
-    .skip(skip)
-    .limit(limit + 1)
-    .select(
-      '_id merchantId merchantDisplayName name slug description merchantPrice price discountPrice suggestedCommission images shippingSystemId stock category gender featured onSale availabilityStatus'
-    )
-    .lean()
-    .exec();
+      const skip = Math.max(nextPage - 1, 0) * nextLimit;
+      const products = await Product.find(query)
+        .sort(Object.fromEntries(getProductSort(nextSort)))
+        .skip(skip)
+        .limit(nextLimit + 1)
+        .select(
+          '_id merchantId merchantDisplayName name slug description merchantPrice price discountPrice suggestedCommission images shippingSystemId stock category gender featured onSale availabilityStatus'
+        )
+        .lean()
+        .exec();
 
-  const normalizedProducts = products.slice(0, limit);
+      const normalizedProducts = products.slice(0, nextLimit);
 
-  return {
-    products: normalizedProducts.map((product: any) => ({
-      _id: String(product._id),
-      name: product.name,
-      slug: product.slug,
-      price: Number(product.price || 0),
-      discountPrice: product.discountPrice !== undefined ? Number(product.discountPrice) : undefined,
-      images: Array.isArray(product.images) && product.images.length > 0 ? [product.images[0]] : [],
-      category: product.category,
-      gender: product.gender,
-      featured: Boolean(product.featured),
-      onSale: Boolean(product.onSale),
-      availabilityStatus: product.availabilityStatus,
-    })),
-    hasMore: products.length > limit,
-  };
+      return {
+        products: normalizedProducts.map((product: any) => ({
+          _id: String(product._id),
+          name: product.name,
+          slug: product.slug,
+          price: Number(product.price || 0),
+          discountPrice: product.discountPrice !== undefined ? Number(product.discountPrice) : undefined,
+          images: Array.isArray(product.images) && product.images.length > 0 ? [product.images[0]] : [],
+          category: product.category,
+          gender: product.gender,
+          featured: Boolean(product.featured),
+          onSale: Boolean(product.onSale),
+          availabilityStatus: product.availabilityStatus,
+        })),
+        hasMore: products.length > nextLimit,
+      };
+    },
+    ['public-category-products'],
+    { revalidate: 300 }
+  )(category, gender, status, sort, page, limit);
 }

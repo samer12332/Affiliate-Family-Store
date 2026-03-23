@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import { connectDB } from "@/lib/db";
@@ -7,6 +8,7 @@ import { getPublicCategoryProducts } from "@/lib/product-marketplace";
 import Link from "next/link";
 
 export const revalidate = 60;
+export const dynamicParams = true;
 
 interface ProductItem {
   _id: string;
@@ -79,19 +81,29 @@ async function getCategoryData(slug: string): Promise<CategoryData | null> {
   if (CATEGORY_FALLBACKS[slug]) {
     return CATEGORY_FALLBACKS[slug];
   }
+  return unstable_cache(
+    async (nextSlug: string) => {
+      await connectDB();
+      const category: any = await Category.findOne({ slug: nextSlug }).lean();
+      if (category) {
+        return {
+          _id: category._id?.toString?.(),
+          name: category.name,
+          slug: category.slug,
+          description: category.description || "",
+          image: category.image || "",
+        };
+      }
 
-  const category: any = await Category.findOne({ slug }).lean();
-  if (category) {
-    return {
-      _id: category._id?.toString?.(),
-      name: category.name,
-      slug: category.slug,
-      description: category.description || "",
-      image: category.image || "",
-    };
-  }
+      return CATEGORY_FALLBACKS[nextSlug] ?? null;
+    },
+    ["category-data"],
+    { revalidate: 300 }
+  )(slug);
+}
 
-  return CATEGORY_FALLBACKS[slug] ?? null;
+export function generateStaticParams() {
+  return Object.keys(CATEGORY_FALLBACKS).map((slug) => ({ slug }));
 }
 export default async function CategoryPage({
   params,
@@ -112,7 +124,6 @@ export default async function CategoryPage({
     ...(sortParam ? { sort: sortParam } : {}),
   };
 
-  await connectDB();
   const category = await getCategoryData(slug);
 
   if (!category) {

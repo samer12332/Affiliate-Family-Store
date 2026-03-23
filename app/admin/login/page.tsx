@@ -31,17 +31,22 @@ export default function AdminLogin() {
       return;
     }
     setLoading(true);
+    let shouldResetLoading = true;
 
     try {
       const result = await login(email, password);
       if (result.success) {
         const role = result.admin?.role;
-        router.push(role === 'marketer' ? '/shop' : '/admin/dashboard');
+        shouldResetLoading = false;
+        router.replace(role === 'marketer' ? '/shop' : '/admin/dashboard');
+        return;
       } else {
         setError(result.error || t('Invalid email or password'));
       }
     } finally {
-      setLoading(false);
+      if (shouldResetLoading) {
+        setLoading(false);
+      }
     }
   };
 
