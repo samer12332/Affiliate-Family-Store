@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache';
+import { connectDB } from '@/lib/db';
 import { Product, User } from '@/lib/models';
 import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { safeTrim } from '@/lib/validation';
@@ -32,6 +33,8 @@ const getCachedPublicCategoryProducts = unstable_cache(
     nextPage: number,
     nextLimit: number
   ) => {
+    await connectDB();
+
     const query: any = {
       $or: [{ marketplaceVisible: true }, { marketplaceVisible: { $exists: false } }],
       category: nextCategory,
@@ -117,6 +120,8 @@ function buildMerchantSnapshot(merchant: any, legacyMainMerchantIds: Set<string>
 }
 
 export async function syncMarketplaceProductSnapshotForMerchant(merchantId: string) {
+  await connectDB();
+
   const merchant: any = await User.findById(merchantId)
     .select('_id role name mainMerchantId merchantProfile.storeName')
     .lean();
@@ -151,6 +156,8 @@ export async function syncMarketplaceProductSnapshotForMerchant(merchantId: stri
 }
 
 export async function syncAllMarketplaceProductSnapshots(force = false) {
+  await connectDB();
+
   const now = Date.now();
   if (!force && lastSnapshotSyncAt > 0 && now - lastSnapshotSyncAt < SNAPSHOT_SYNC_COOLDOWN_MS) {
     return;
@@ -207,6 +214,8 @@ export async function syncAllMarketplaceProductSnapshots(force = false) {
 }
 
 export async function getMarketplaceBaseQueryForUser(user: any) {
+  await connectDB();
+
   const actorRole = normalizeRole(user?.role);
 
   if (isSubmerchantRole(actorRole)) {
@@ -276,6 +285,8 @@ export async function getMarketplaceProducts({
   limit?: number;
   includeTotal?: boolean;
 }) {
+  await connectDB();
+
   await syncAllMarketplaceProductSnapshots();
 
   const baseQuery = await getMarketplaceBaseQueryForUser(user);
