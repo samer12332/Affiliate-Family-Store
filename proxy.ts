@@ -11,6 +11,7 @@ const ALLOWED_INLINE_SCRIPT_HASHES = [
   "'sha256-5Aln0h5eK7yRC6JdXC8YKIPycRwNk7Xzhuo+UTD3WIU='",
   "'sha256-0jehuMSZMVl5UFN83FAi7dJBdKypslLTW/Sw49Gh4/Q='",
   "'sha256-+40T5d+tKSaNOZ+wB+6mMmRzMtcuxFXOTqXZQB6Q0jM='",
+  "'sha256-Duh6Rxo+7zp0aN7biafhUNf+vR6VO5hP0y5ga5IOemk='",
 ];
 
 function createNonce() {
