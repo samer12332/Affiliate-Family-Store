@@ -24,8 +24,6 @@ export function LiveNotificationToast() {
   useEffect(() => {
     if (isLoading || !token) return;
 
-    let cancelled = false;
-
     const markReadAndOpen = async (item: NotificationItem) => {
       try {
         if (!item.read) {
@@ -41,7 +39,7 @@ export function LiveNotificationToast() {
       }
     };
 
-    const poll = async () => {
+    const loadOnce = async () => {
       try {
         const data = await get('/notifications?limit=10&unreadOnly=true');
         const items: NotificationItem[] = Array.isArray(data?.notifications) ? data.notifications : [];
@@ -69,27 +67,17 @@ export function LiveNotificationToast() {
           });
         }
 
-        if (!cancelled) {
-          for (const id of Array.from(seenIds.current)) {
-            if (!currentIds.has(id)) {
-              seenIds.current.delete(id);
-            }
+        for (const id of Array.from(seenIds.current)) {
+          if (!currentIds.has(id)) {
+            seenIds.current.delete(id);
           }
         }
       } catch {
-        // Ignore polling failures; next interval will retry.
+        // Ignore transient load failures until the next page reload.
       }
     };
 
-    void poll();
-    const intervalId = window.setInterval(() => {
-      void poll();
-    }, 15000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
+    void loadOnce();
   }, [get, isLoading, request, router, token]);
 
   return null;

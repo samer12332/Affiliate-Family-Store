@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
@@ -10,6 +11,7 @@ import { useCart } from '@/hooks/useCart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useI18n } from '@/components/i18n/LanguageProvider';
 import { validatePhone } from '@/lib/common-validation';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
@@ -21,6 +23,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
   const { admin, token, isLoading } = useAdminAuth();
   const { get, post } = useApi();
   const { addItem, getTotalItems } = useCart();
+  const { t } = useI18n();
   const [merchant, setMerchant] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [shippingSystems, setShippingSystems] = useState<any[]>([]);
@@ -113,7 +116,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
       productId: product._id,
       merchantId: String(product.merchantId || merchantId),
       shippingSystemId: String(product.shippingSystemId || ''),
-      merchantName: merchant?.merchantProfile?.storeName || merchant?.name || 'Merchant',
+      merchantName: merchant?.merchantProfile?.storeName || merchant?.name || t('Merchant'),
       productName: product.name,
       productSlug: product.slug,
       productImage: product.images?.[0] || '/placeholder.jpg',
@@ -190,16 +193,16 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
         <div className="mb-8 rounded-3xl border border-stone-200 bg-white/90 p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Merchant page</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-stone-500">{t('Merchant page')}</p>
               <h1 className="mt-2 text-3xl font-bold text-stone-900">
-                {merchant?.merchantProfile?.storeName || merchant?.name || 'Merchant'}
+                {merchant?.merchantProfile?.storeName || merchant?.name || t('Merchant')}
               </h1>
               <p className="mt-2 max-w-3xl text-sm text-stone-600">
-                Browse this merchant&apos;s products, review shipping terms, and enter the selling price you agreed with the customer before placing the order.
+                {t("Browse this merchant's products, review shipping terms, and enter the selling price you agreed with the customer before placing the order.")}
               </p>
             </div>
             <Button variant="outline" onClick={() => router.push('/cart')}>
-              View cart ({getTotalItems()})
+              {t('View cart')} ({getTotalItems()})
             </Button>
           </div>
         </div>
@@ -208,11 +211,11 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
           <Card className="rounded-3xl border-stone-200 p-6">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-stone-900">Merchant products</h2>
-                <p className="mt-1 text-sm text-stone-500">Compact product cards with product-specific shipping details.</p>
+                <h2 className="text-lg font-semibold text-stone-900">{t('Merchant products')}</h2>
+                <p className="mt-1 text-sm text-stone-500">{t('Compact product cards with product-specific shipping details.')}</p>
               </div>
               <div className="rounded-full bg-stone-100 px-4 py-2 text-sm font-medium text-stone-700">
-                {products.length} products
+                {products.length} {t('Products')}
               </div>
             </div>
 
@@ -255,13 +258,13 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                           <h3 className="mt-1 truncate text-[15px] font-semibold text-stone-900">{product.name}</h3>
                         </div>
                         <div className="text-right">
-                          <p className="text-[10px] text-stone-500">Price</p>
+                          <p className="text-[10px] text-stone-500">{t('Price')}</p>
                           <p className="text-sm font-semibold leading-none text-stone-900">{merchantPrice.toFixed(2)} EGP</p>
                         </div>
                       </div>
 
                       <p className="line-clamp-1 text-xs text-stone-600">
-                        {product.description || 'No description added yet for this product.'}
+                        {product.description || t('No description added yet for this product.')}
                       </p>
 
                       <div className="flex flex-wrap gap-1.5 text-[11px]">
@@ -285,15 +288,15 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
 
                       <div className="flex items-center justify-between rounded-2xl bg-stone-50 px-3 py-2 text-[11px]">
                         <div>
-                          <span className="text-stone-500">Suggested:</span>{' '}
+                          <span className="text-stone-500">{t('Suggested')}:</span>{' '}
                           <span className="font-semibold text-stone-900">
                             {product.suggestedCommission !== null && product.suggestedCommission !== undefined
                               ? `${Number(product.suggestedCommission).toFixed(2)} EGP`
-                              : 'Not set'}
+                              : t('Not set')}
                           </span>
                         </div>
                         <div>
-                          <span className="text-stone-500">Profit:</span>{' '}
+                          <span className="text-stone-500">{t('Profit')}:</span>{' '}
                           <span className="font-semibold text-stone-900">{expectedProfit.toFixed(2)} EGP</span>
                         </div>
                       </div>
@@ -302,7 +305,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                         <Input
                           type="number"
                           min="0"
-                          placeholder="Qty"
+                          placeholder={t('Qty')}
                           value={selectedEntry.quantity || ''}
                           onChange={(e) =>
                             setSelectedProducts((prev) => ({
@@ -318,7 +321,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                           type="number"
                           min="0"
                           step="0.01"
-                          placeholder="Sell price"
+                          placeholder={t('Sell price')}
                           value={selectedEntry.salePriceByMarketer || ''}
                           onChange={(e) =>
                             setSelectedProducts((prev) => ({
@@ -332,9 +335,14 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                         />
                       </div>
 
-                      <Button className="w-full" type="button" onClick={() => addProductToCart(product)}>
-                        Add to cart
-                      </Button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Link href={`/products/${product.slug}`}>
+                          <Button className="w-full" type="button" variant="outline">{t('View product')}</Button>
+                        </Link>
+                        <Button className="w-full" type="button" onClick={() => addProductToCart(product)}>
+                          {t('Add to cart')}
+                        </Button>
+                      </div>
 
                       <div className="overflow-hidden rounded-2xl border border-stone-200">
                         <button
@@ -344,10 +352,10 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                         >
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-stone-900">
-                              {shippingSystem?.name || 'Shipping system not assigned'}
+                              {shippingSystem?.name || t('Shipping system not assigned')}
                             </p>
                             <p className="mt-0.5 line-clamp-1 text-[11px] text-stone-500">
-                              {shippingSystem?.notes || (shippingSystem ? `${shippingFeesCount} governorates configured` : 'No shipping details yet')}
+                              {shippingSystem?.notes || (shippingSystem ? `${shippingFeesCount} ${t('governorates configured')}` : t('No shipping details yet'))}
                             </p>
                           </div>
                           <ChevronDown className={`h-4 w-4 shrink-0 text-stone-500 transition-transform ${shippingOpen ? 'rotate-180' : ''}`} />
@@ -359,8 +367,8 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                               <table className="min-w-full text-xs">
                                 <thead className="bg-stone-50 text-left text-stone-500">
                                   <tr>
-                                    <th className="px-3 py-2 font-medium">Governorate</th>
-                                    <th className="px-3 py-2 font-medium">Fee</th>
+                                    <th className="px-3 py-2 font-medium">{t('Governorate')}</th>
+                                    <th className="px-3 py-2 font-medium">{t('Fee')}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -384,17 +392,17 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
           </Card>
 
           <Card className="self-start rounded-3xl border-stone-200 p-6">
-            <h2 className="text-lg font-semibold text-stone-900">Create order</h2>
+            <h2 className="text-lg font-semibold text-stone-900">{t('Create order')}</h2>
             <div className="mt-4 space-y-3">
-              <Input placeholder="Customer name" value={customer.name} onChange={(e) => setCustomer((prev) => ({ ...prev, name: e.target.value }))} />
-              <Input placeholder="Customer phone" value={customer.phone} onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))} />
-              <Input placeholder="Customer email" value={customer.email} onChange={(e) => setCustomer((prev) => ({ ...prev, email: e.target.value }))} />
-              <Input placeholder="Address line" value={customer.addressLine} onChange={(e) => setCustomer((prev) => ({ ...prev, addressLine: e.target.value }))} />
+              <Input placeholder={t('Customer name')} value={customer.name} onChange={(e) => setCustomer((prev) => ({ ...prev, name: e.target.value }))} />
+              <Input placeholder={t('Customer phone')} value={customer.phone} onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))} />
+              <Input placeholder={t('Customer email')} value={customer.email} onChange={(e) => setCustomer((prev) => ({ ...prev, email: e.target.value }))} />
+              <Input placeholder={t('Address line')} value={customer.addressLine} onChange={(e) => setCustomer((prev) => ({ ...prev, addressLine: e.target.value }))} />
               <textarea
                 value={customer.notes}
                 onChange={(e) => setCustomer((prev) => ({ ...prev, notes: e.target.value }))}
                 className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
-                placeholder="Customer notes"
+                placeholder={t('Customer notes')}
               />
 
               <select
@@ -412,11 +420,11 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
 
             <div className="mt-6 space-y-2 rounded-2xl bg-stone-50 p-4 text-sm">
               <div className="flex justify-between">
-                <span>Items selected</span>
+                <span>{t('Items selected')}</span>
                 <span>{chosenItems.length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Shipping fee</span>
+                <span>{t('Shipping fee')}</span>
                 <span>{shippingFee.toFixed(2)} EGP</span>
               </div>
             </div>
@@ -424,7 +432,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
             {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
             <Button className="mt-6 w-full" onClick={submitOrder} disabled={saving}>
-              {saving ? 'Creating order...' : 'Submit to merchant'}
+              {saving ? t('Creating order...') : t('Submit to merchant')}
             </Button>
           </Card>
         </div>
