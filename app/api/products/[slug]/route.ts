@@ -1,4 +1,5 @@
 import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
+import { MAX_PRODUCT_IMAGES } from '@/lib/constants';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem } from '@/lib/models';
 import { revalidateMarketplaceCaches, syncMarketplaceProductSnapshotForMerchant } from '@/lib/product-marketplace';
@@ -42,6 +43,22 @@ async function generateUniqueSku(base: string, excludeProductId?: string): Promi
   }
 
   return candidate;
+}
+
+function normalizeProductImages(images: unknown) {
+  if (images === undefined) return undefined;
+  if (!Array.isArray(images)) return null;
+
+  const normalized = images
+    .filter((img): img is string => typeof img === 'string')
+    .map((img) => img.trim())
+    .filter(Boolean);
+
+  if (normalized.length > MAX_PRODUCT_IMAGES) {
+    return null;
+  }
+
+  return normalized;
 }
 
 export async function GET(
@@ -136,7 +153,16 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid gender value' }, { status: 400 });
     }
     if (body.description !== undefined) update.description = safeTrim(body.description, 4000);
-    if (body.images !== undefined) update.images = Array.isArray(body.images) ? body.images.slice(0, 20) : [];
+    if (body.images !== undefined) {
+      const normalizedImages = normalizeProductImages(body.images);
+      if (normalizedImages === null) {
+        return NextResponse.json(
+          { error: `A product can have at most ${MAX_PRODUCT_IMAGES} images.` },
+          { status: 400 }
+        );
+      }
+      update.images = normalizedImages;
+    }
     if (body.availabilityStatus !== undefined) update.availabilityStatus = body.availabilityStatus;
     if (body.featured !== undefined) update.featured = Boolean(body.featured);
     if (body.onSale !== undefined) update.onSale = Boolean(body.onSale);

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcryptjs from 'bcryptjs';
+import { MAX_PRODUCT_IMAGES } from '@/lib/constants';
 
 const USER_ROLES = ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer'] as const;
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'] as const;
@@ -147,7 +148,14 @@ const productSchema = new mongoose.Schema(
     suggestedCommission: { type: Number, min: 0, default: null },
     price: { type: Number, required: true, min: 0 },
     discountPrice: Number,
-    images: [String],
+    images: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (value: string[]) => Array.isArray(value) && value.length <= MAX_PRODUCT_IMAGES,
+        message: `A product can have at most ${MAX_PRODUCT_IMAGES} images.`,
+      },
+    },
     colors: [String],
     sizes: [String],
     sizeWeightChart: [
@@ -320,11 +328,13 @@ const notificationSchema = new mongoose.Schema(
     href: { type: String, default: '' },
     read: { type: Boolean, default: false, index: true },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    expiresAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const commissionComplaintSchema = new mongoose.Schema(
   {
@@ -378,6 +388,14 @@ if (existingCommissionComplaintModel) {
   const hasWhatsappNumberPath = Boolean(existingCommissionComplaintModel.schema.path('whatsappNumber'));
   if (!hasWhatsappNumberPath) {
     mongoose.deleteModel('CommissionComplaint');
+  }
+}
+
+const existingNotificationModel = mongoose.models.Notification as mongoose.Model<any> | undefined;
+if (existingNotificationModel) {
+  const hasExpiresAtPath = Boolean(existingNotificationModel.schema.path('expiresAt'));
+  if (!hasExpiresAtPath) {
+    mongoose.deleteModel('Notification');
   }
 }
 

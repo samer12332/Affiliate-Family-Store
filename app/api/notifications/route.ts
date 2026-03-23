@@ -1,6 +1,7 @@
 import { requireAuth } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Notification } from '@/lib/models';
+import { backfillNotificationRetention, getNotificationExpiryDate } from '@/lib/notifications';
 import { parsePositiveInt } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -9,6 +10,7 @@ export async function GET(request: NextRequest) {
     await connectDB();
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
+    await backfillNotificationRetention(auth.user._id.toString());
 
     const searchParams = request.nextUrl.searchParams;
     const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
@@ -55,6 +57,7 @@ export async function PATCH(request: NextRequest) {
     await connectDB();
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
+    await backfillNotificationRetention(auth.user._id.toString());
 
     const body = await request.json();
     const action = String(body?.action || '');
@@ -64,7 +67,7 @@ export async function PATCH(request: NextRequest) {
 
     await Notification.updateMany(
       { userId: auth.user._id, read: false },
-      { $set: { read: true } }
+      { $set: { read: true, expiresAt: getNotificationExpiryDate(true) } }
     );
 
     return NextResponse.json({ success: true });

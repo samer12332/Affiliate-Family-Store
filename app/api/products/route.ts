@@ -1,4 +1,5 @@
 import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
+import { MAX_PRODUCT_IMAGES } from '@/lib/constants';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem, User } from '@/lib/models';
 import { getMarketplaceProducts, getProductSort, revalidateMarketplaceCaches, syncMarketplaceProductSnapshotForMerchant } from '@/lib/product-marketplace';
@@ -41,6 +42,22 @@ async function generateUniqueSku(base: string): Promise<string> {
   }
 
   return candidate;
+}
+
+function normalizeProductImages(images: unknown) {
+  if (images === undefined) return [];
+  if (!Array.isArray(images)) return null;
+
+  const normalized = images
+    .filter((img): img is string => typeof img === 'string')
+    .map((img) => img.trim())
+    .filter(Boolean);
+
+  if (normalized.length > MAX_PRODUCT_IMAGES) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function shapeProductListItems(products: any[], fieldset: string) {
@@ -288,6 +305,14 @@ export async function POST(request: NextRequest) {
     const providedSku = safeTrim(body?.sku, 120);
     const finalSku = providedSku || await generateUniqueSku(finalSlug);
 
+    const normalizedImages = normalizeProductImages(body?.images);
+    if (normalizedImages === null) {
+      return NextResponse.json(
+        { error: `A product can have at most ${MAX_PRODUCT_IMAGES} images.` },
+        { status: 400 }
+      );
+    }
+
     const product = await Product.create({
       merchantId,
       name: productName,
@@ -303,7 +328,7 @@ export async function POST(request: NextRequest) {
       sizes,
       shippingSystemId: shippingSystem._id,
       description: safeTrim(body?.description, 4000),
-      images: Array.isArray(body?.images) ? body.images.filter((img: any) => typeof img === 'string' && img).slice(0, 20) : [],
+      images: normalizedImages,
       availabilityStatus: body?.availabilityStatus || 'Available',
       featured: Boolean(body?.featured),
       onSale: Boolean(body?.onSale),

@@ -13,6 +13,7 @@ import {
   AVAILABILITY_STATUS,
   GENDER_TYPES,
   MAIN_MERCHANT_COMMISSION_RATE,
+  MAX_PRODUCT_IMAGES,
   OWNER_COMMISSION_RATE,
   PRODUCT_CATEGORIES,
 } from '@/lib/constants';
@@ -117,7 +118,21 @@ export default function NewProductPage() {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
+    const invalidFile = files.find((file) => !file.type.startsWith('image/'));
+    if (invalidFile) {
+      setError('Only image files can be uploaded for products.');
+      event.target.value = '';
+      return;
+    }
+
     const mergedFiles = [...selectedFiles, ...files];
+    if (mergedFiles.length > MAX_PRODUCT_IMAGES) {
+      setError(`You can upload up to ${MAX_PRODUCT_IMAGES} images per product.`);
+      event.target.value = '';
+      return;
+    }
+
+    setError('');
     setSelectedFiles(mergedFiles);
     imagePreviews.forEach((preview) => {
       if (preview.startsWith('blob:')) {
@@ -158,6 +173,10 @@ export default function NewProductPage() {
     }
     if (!Number.isInteger(Number(formData.stock)) || Number(formData.stock) < 0) {
       setError('Please provide a valid non-negative stock quantity.');
+      return;
+    }
+    if (selectedFiles.length > MAX_PRODUCT_IMAGES) {
+      setError(`You can upload up to ${MAX_PRODUCT_IMAGES} images per product.`);
       return;
     }
 
@@ -276,6 +295,9 @@ export default function NewProductPage() {
             <div className="space-y-3">
               <label className="text-sm font-medium text-foreground">Product images</label>
               <Input type="file" accept="image/*" multiple onChange={handleFileChange} />
+              <p className="text-xs text-muted-foreground">
+                Images only. Maximum {MAX_PRODUCT_IMAGES} images per product.
+              </p>
               {imagePreviews.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {imagePreviews.map((src, index) => (

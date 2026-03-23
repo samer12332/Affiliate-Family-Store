@@ -1,5 +1,67 @@
 import { Notification, User } from '@/lib/models';
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const READ_NOTIFICATION_RETENTION_DAYS = 7;
+const UNREAD_NOTIFICATION_RETENTION_DAYS = 14;
+
+export function getNotificationExpiryDate(read: boolean, baseDate = new Date()) {
+  const retentionDays = read ? READ_NOTIFICATION_RETENTION_DAYS : UNREAD_NOTIFICATION_RETENTION_DAYS;
+  return new Date(baseDate.getTime() + retentionDays * DAY_IN_MS);
+}
+
+export async function backfillNotificationRetention(userId?: string) {
+  const now = new Date();
+  const filter = userId ? { userId } : {};
+
+  await Notification.deleteMany({
+    ...filter,
+    $or: [
+      {
+        read: true,
+        createdAt: { $lte: new Date(now.getTime() - READ_NOTIFICATION_RETENTION_DAYS * DAY_IN_MS) },
+      },
+      {
+        read: false,
+        createdAt: { $lte: new Date(now.getTime() - UNREAD_NOTIFICATION_RETENTION_DAYS * DAY_IN_MS) },
+      },
+    ],
+  });
+
+  await Notification.updateMany(
+    { ...filter, read: true, expiresAt: null },
+    [
+      {
+        $set: {
+          expiresAt: {
+            $dateAdd: {
+              startDate: '$createdAt',
+              unit: 'day',
+              amount: READ_NOTIFICATION_RETENTION_DAYS,
+            },
+          },
+        },
+      },
+    ]
+  );
+
+  await Notification.updateMany(
+    { ...filter, read: false, expiresAt: null },
+    [
+      {
+        $set: {
+          expiresAt: {
+            $dateAdd: {
+              startDate: '$createdAt',
+              unit: 'day',
+              amount: UNREAD_NOTIFICATION_RETENTION_DAYS,
+            },
+          },
+        },
+      },
+    ]
+  );
+}
+
 export async function getAdminUserIds(): Promise<string[]> {
   const ids = await User.find({
     role: { $in: ['owner', 'admin', 'super_admin'] },
@@ -34,6 +96,7 @@ export async function createNotificationsForUsers(input: {
       href: input.href || '',
       metadata: input.metadata || {},
       read: false,
+      expiresAt: getNotificationExpiryDate(false),
     }))
   );
 }

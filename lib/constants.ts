@@ -46,5 +46,6 @@ export const OWNER_PASSWORD = "samer99yousry";
 export const OWNER_NAME = "Samer Yousry";
 export const OWNER_COMMISSION_RATE = 0.05;
 export const MAIN_MERCHANT_COMMISSION_RATE = 0.05;
+export const MAX_PRODUCT_IMAGES = 8;
 
 export const MESSAGE_TYPES = ["contact", "productInquiry"];

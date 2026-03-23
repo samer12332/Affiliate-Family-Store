@@ -13,6 +13,7 @@ import {
   AVAILABILITY_STATUS,
   GENDER_TYPES,
   MAIN_MERCHANT_COMMISSION_RATE,
+  MAX_PRODUCT_IMAGES,
   OWNER_COMMISSION_RATE,
   PRODUCT_CATEGORIES,
 } from '@/lib/constants';
@@ -141,7 +142,21 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
+    const invalidFile = files.find((file) => !file.type.startsWith('image/'));
+    if (invalidFile) {
+      setError('Only image files can be uploaded for products.');
+      event.target.value = '';
+      return;
+    }
+
+    if (images.length + files.length > MAX_PRODUCT_IMAGES) {
+      setError(`You can upload up to ${MAX_PRODUCT_IMAGES} images per product.`);
+      event.target.value = '';
+      return;
+    }
+
     const previews = files.map(createObjectPreview);
+    setError('');
     setSelectedFiles((prev) => [...prev, ...files]);
     setImages((prev) => [...prev, ...previews]);
     event.target.value = '';
@@ -164,6 +179,10 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     setError('');
     if (!Number.isInteger(Number(formData.stock)) || Number(formData.stock) < 0) {
       setError('Please provide a valid non-negative stock quantity.');
+      return;
+    }
+    if (images.length > MAX_PRODUCT_IMAGES) {
+      setError(`You can upload up to ${MAX_PRODUCT_IMAGES} images per product.`);
       return;
     }
     const { sizeWeightChart, sizes } = parseSizeInput(formData.sizeWeightChart, isShoesCategory);
@@ -275,6 +294,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
             <div className="space-y-3">
               <label className="text-sm font-medium text-foreground">Product images</label>
               <Input type="file" accept="image/*" multiple onChange={handleFileChange} />
+              <p className="text-xs text-muted-foreground">
+                Images only. Maximum {MAX_PRODUCT_IMAGES} images per product.
+              </p>
               {images.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {images.map((src, index) => (
