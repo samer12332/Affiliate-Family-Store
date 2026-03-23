@@ -105,13 +105,23 @@ export async function POST(request: NextRequest) {
 
     const token = generateToken(user);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       token,
       admin: {
         id: user._id.toString(),
         ...sanitizeUser(user),
       },
     });
+
+    response.cookies.set('admin-token', token, {
+      httpOnly: false,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24,
+    });
+
+    return response;
   } catch (error: any) {
     console.error('[v0] Auth error:', error);
     return NextResponse.json(
