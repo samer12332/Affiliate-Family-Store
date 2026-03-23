@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import { use, useEffect, useMemo, useState } from 'react';
@@ -6,18 +6,21 @@ import { useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { useCart } from '@/hooks/useCart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { validatePhone } from '@/lib/common-validation';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { toast } from 'sonner';
 
 export default function MerchantPage({ params }: { params: Promise<{ merchantId: string }> }) {
   const { merchantId } = use(params);
   const router = useRouter();
   const { admin, token, isLoading } = useAdminAuth();
   const { get, post } = useApi();
+  const { addItem, getTotalItems } = useCart();
   const [merchant, setMerchant] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [shippingSystems, setShippingSystems] = useState<any[]>([]);
@@ -90,6 +93,49 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
     setOpenShippingByProduct((prev) => ({ ...prev, [productId]: !prev[productId] }));
   };
 
+  const addProductToCart = (product: any) => {
+    const selectedEntry = selectedProducts[product._id];
+    const quantity = Math.max(0, Number(selectedEntry?.quantity || 0));
+    const merchantPrice = Number(product.merchantPrice || product.price || 0);
+    const salePrice = Number(selectedEntry?.salePriceByMarketer || 0);
+
+    if (quantity < 1) {
+      setError(`Choose a quantity for "${product.name}" before adding it to the cart.`);
+      return;
+    }
+
+    if (!Number.isFinite(salePrice) || salePrice < merchantPrice) {
+      setError(`Selling price for "${product.name}" must be at least ${merchantPrice.toFixed(2)} EGP.`);
+      return;
+    }
+
+    const result = addItem({
+      productId: product._id,
+      merchantId: String(product.merchantId || merchantId),
+      shippingSystemId: String(product.shippingSystemId || ''),
+      merchantName: merchant?.merchantProfile?.storeName || merchant?.name || 'Merchant',
+      productName: product.name,
+      productSlug: product.slug,
+      productImage: product.images?.[0] || '/placeholder.jpg',
+      selectedColor: '',
+      selectedSize: '',
+      quantity,
+      price: salePrice,
+      merchantPrice,
+      salePriceByMarketer: salePrice,
+      shippingFee: 0,
+      availableStock: Number(product.stock ?? 0),
+    });
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
+    setError('');
+    toast.success(`${product.name} added to cart`);
+  };
+
   const submitOrder = async () => {
     try {
       setError('');
@@ -111,6 +157,17 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
         setError('Please provide a valid customer email address.');
         return;
       }
+      for (const product of products) {
+        const selectedEntry = selectedProducts[product._id];
+        if (!selectedEntry?.quantity) continue;
+
+        const merchantPrice = Number(product.merchantPrice || product.price || 0);
+        const salePrice = Number(selectedEntry.salePriceByMarketer || 0);
+        if (!Number.isFinite(salePrice) || salePrice < merchantPrice) {
+          setError(`Selling price for "${product.name}" must be at least ${merchantPrice.toFixed(2)} EGP.`);
+          return;
+        }
+      }
 
       await post('/orders', {
         merchantId,
@@ -131,13 +188,20 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8f5ef,#f3efe8_45%,#faf8f4)]">
       <main className="mx-auto max-w-7xl px-4 py-8">
         <div className="mb-8 rounded-3xl border border-stone-200 bg-white/90 p-6 shadow-sm">
-          <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Merchant page</p>
-          <h1 className="mt-2 text-3xl font-bold text-stone-900">
-            {merchant?.merchantProfile?.storeName || merchant?.name || 'Merchant'}
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-stone-600">
-            Browse this merchant's products, review shipping terms, and enter the selling price you agreed with the customer before placing the order.
-          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Merchant page</p>
+              <h1 className="mt-2 text-3xl font-bold text-stone-900">
+                {merchant?.merchantProfile?.storeName || merchant?.name || 'Merchant'}
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm text-stone-600">
+                Browse this merchant&apos;s products, review shipping terms, and enter the selling price you agreed with the customer before placing the order.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => router.push('/cart')}>
+              View cart ({getTotalItems()})
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -186,7 +250,7 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
-                            {product.category}{product.gender ? ` • ${product.gender}` : ''}
+                            {product.category}{product.gender ? ` � ${product.gender}` : ''}
                           </p>
                           <h3 className="mt-1 truncate text-[15px] font-semibold text-stone-900">{product.name}</h3>
                         </div>
@@ -267,6 +331,10 @@ export default function MerchantPage({ params }: { params: Promise<{ merchantId:
                           }
                         />
                       </div>
+
+                      <Button className="w-full" type="button" onClick={() => addProductToCart(product)}>
+                        Add to cart
+                      </Button>
 
                       <div className="overflow-hidden rounded-2xl border border-stone-200">
                         <button
