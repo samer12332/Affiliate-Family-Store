@@ -1,4 +1,4 @@
-import { unstable_cache } from 'next/cache';
+import { revalidateTag, unstable_cache } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Product, User } from '@/lib/models';
 import { isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
@@ -6,6 +6,8 @@ import { safeTrim } from '@/lib/validation';
 
 const PAGE_SIZE_DEFAULT = 24;
 const SNAPSHOT_SYNC_COOLDOWN_MS = 15 * 60 * 1000;
+const MARKETPLACE_PRODUCTS_TAG = 'marketplace-products';
+const MARKETPLACE_CATEGORY_PRODUCTS_TAG = 'marketplace-category-products';
 
 let lastSnapshotSyncAt = 0;
 let snapshotSyncPromise: Promise<void> | null = null;
@@ -23,6 +25,64 @@ async function hasLegacyMarketplaceSnapshots() {
 
   return Boolean(product);
 }
+
+function getMarketplaceScopeKey(user: any) {
+  const actorRole = normalizeRole(user?.role);
+  const mainMerchantId = user?.mainMerchantId?.toString?.() || '';
+
+  if (isMarketerRole(actorRole)) {
+    return mainMerchantId ? `marketer:${mainMerchantId}` : 'marketer:all';
+  }
+
+  if (isSubmerchantRole(actorRole)) {
+    return `submerchant:${user?._id?.toString?.() || ''}`;
+  }
+
+  if (isMainMerchantRole(actorRole)) {
+    return `main_merchant:${user?._id?.toString?.() || ''}`;
+  }
+
+  return actorRole || 'unknown';
+}
+
+const getCachedMarketplaceListing = unstable_cache(
+  async (scopeKey: string, category: string | null, sort: string, limit: number) => {
+    await connectDB();
+
+    const query: any = { marketplaceVisible: true };
+    if (scopeKey.startsWith('marketer:') && scopeKey !== 'marketer:all') {
+      query.merchantMainMerchantId = scopeKey.slice('marketer:'.length);
+    }
+    if (category) {
+      query.category = category;
+    }
+
+    const products = await Product.find(query)
+      .sort(Object.fromEntries(getProductSort(sort)))
+      .limit(limit + 1)
+      .select(
+        '_id merchantId merchantDisplayName name slug description merchantPrice price suggestedCommission images shippingSystemId stock category'
+      )
+      .lean()
+      .exec();
+
+    const normalizedProducts = products.slice(0, limit);
+
+    return {
+      products: normalizedProducts.map(shapeMarketplaceProduct),
+      total: null,
+      hasMore: products.length > limit,
+      pagination: {
+        page: 1,
+        limit,
+        total: null,
+        pages: null,
+      },
+    };
+  },
+  ['marketplace-listing'],
+  { revalidate: 300, tags: [MARKETPLACE_PRODUCTS_TAG] }
+);
 
 const getCachedPublicCategoryProducts = unstable_cache(
   async (
@@ -77,7 +137,7 @@ const getCachedPublicCategoryProducts = unstable_cache(
     };
   },
   ['public-category-products'],
-  { revalidate: 300 }
+  { revalidate: 300, tags: [MARKETPLACE_CATEGORY_PRODUCTS_TAG] }
 );
 
 export function getProductSort(sort: string) {
@@ -289,6 +349,18 @@ export async function getMarketplaceProducts({
 
   await syncAllMarketplaceProductSnapshots();
 
+  const actorRole = normalizeRole(user?.role);
+  const shouldUseCachedListing =
+    page === 1 &&
+    !includeTotal &&
+    !merchantId &&
+    !search &&
+    isMarketerRole(actorRole);
+
+  if (shouldUseCachedListing) {
+    return getCachedMarketplaceListing(getMarketplaceScopeKey(user), category || null, sort, limit);
+  }
+
   const baseQuery = await getMarketplaceBaseQueryForUser(user);
   const query: any = { ...baseQuery };
   if (merchantId) {
@@ -359,4 +431,9 @@ export async function getPublicCategoryProducts({
   limit?: number;
 }) {
   return getCachedPublicCategoryProducts(category, gender, status, sort, page, limit);
+}
+
+export function revalidateMarketplaceCaches() {
+  revalidateTag(MARKETPLACE_PRODUCTS_TAG, 'max');
+  revalidateTag(MARKETPLACE_CATEGORY_PRODUCTS_TAG, 'max');
 }

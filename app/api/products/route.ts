@@ -1,7 +1,7 @@
 import { canManageMerchantResource, getAuthUser, requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Product, ShippingSystem, User } from '@/lib/models';
-import { getMarketplaceProducts, getProductSort, syncMarketplaceProductSnapshotForMerchant } from '@/lib/product-marketplace';
+import { getMarketplaceProducts, getProductSort, revalidateMarketplaceCaches, syncMarketplaceProductSnapshotForMerchant } from '@/lib/product-marketplace';
 import { isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { escapeRegex, isValidObjectId, parsePositiveInt, safeTrim } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
@@ -315,6 +315,7 @@ export async function POST(request: NextRequest) {
     });
 
     await syncMarketplaceProductSnapshotForMerchant(merchantId);
+    revalidateMarketplaceCaches();
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (error: any) {
