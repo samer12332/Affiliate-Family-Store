@@ -15,7 +15,7 @@ import { validatePhone } from '@/lib/common-validation';
 import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 import { toast } from 'sonner';
 
-const PRODUCT_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw';
+const PRODUCT_IMAGE_SIZES = '(max-width: 768px) 50vw, (max-width: 1280px) 50vw, 33vw';
 
 export interface MerchantSummary {
   _id: string;
@@ -234,9 +234,20 @@ export default function MerchantPageClient({
                 {t("Browse this merchant's products, review shipping terms, and enter the selling price you agreed with the customer before placing the order.")}
               </p>
             </div>
-            <Button variant="outline" onClick={() => router.push('/cart')}>
-              {t('View cart')} ({getTotalItems()})
-            </Button>
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              <Link href="/shop">
+                <Button size="sm" variant="outline">Marketplace</Button>
+              </Link>
+              <Link href="/marketer/dashboard">
+                <Button size="sm" variant="outline">Dashboard</Button>
+              </Link>
+              <Link href="/admin/orders">
+                <Button size="sm" variant="outline">My orders</Button>
+              </Link>
+              <Button size="sm" variant="outline" onClick={() => router.push('/cart')}>
+                {t('View cart')} ({getTotalItems()})
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -252,7 +263,7 @@ export default function MerchantPageClient({
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
               {products.map((product, index) => {
                 const resolvedSizes = Array.isArray(product.sizeWeightChart) && product.sizeWeightChart.length > 0
                   ? product.sizeWeightChart.map((entry) => entry.size)
@@ -287,139 +298,165 @@ export default function MerchantPageClient({
                     </div>
 
                     <div className="space-y-2 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
-                            {product.category}{product.gender ? ` • ${product.gender}` : ''}
-                          </p>
-                          <h3 className="mt-1 truncate text-[15px] font-semibold text-stone-900">{product.name}</h3>
+                      <div className="md:hidden">
+                        <p className="truncate text-[10px] uppercase tracking-[0.16em] text-stone-500">
+                          {t('Shipping type')}: {shippingSystem?.name || t('Shipping system not assigned')}
+                        </p>
+                        <h3 className="mt-1 truncate text-sm font-semibold text-stone-900">{product.name}</h3>
+                        <div className="mt-2 flex items-center justify-between rounded-xl bg-stone-50 px-2.5 py-2 text-[11px]">
+                          <div>
+                            <span className="text-stone-500">{t('Price')}:</span>{' '}
+                            <span className="font-semibold text-stone-900">{merchantPrice.toFixed(2)} EGP</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-stone-500">{t('Suggested')}:</span>{' '}
+                            <span className="font-semibold text-stone-900">
+                              {product.suggestedCommission !== null && product.suggestedCommission !== undefined
+                                ? `${Number(product.suggestedCommission).toFixed(2)} EGP`
+                                : t('Not set')}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-[10px] text-stone-500">{t('Price')}</p>
-                          <p className="text-sm font-semibold leading-none text-stone-900">{merchantPrice.toFixed(2)} EGP</p>
-                        </div>
-                      </div>
-
-                      <p className="line-clamp-1 text-xs text-stone-600">
-                        {product.description || t('No description added yet for this product.')}
-                      </p>
-
-                      <div className="flex flex-wrap gap-1.5 text-[11px]">
-                        {resolvedSizes.slice(0, 2).map((size) => (
-                          <span key={size} className="rounded-full bg-stone-100 px-2.5 py-1 font-medium text-stone-700">
-                            {size}
-                          </span>
-                        ))}
-                        {resolvedSizes.length > 2 ? (
-                          <span className="rounded-full bg-stone-100 px-2.5 py-1 font-medium text-stone-700">+{resolvedSizes.length - 2}</span>
-                        ) : null}
-                        {resolvedColors.slice(0, 1).map((color) => (
-                          <span key={color} className="rounded-full border border-stone-200 px-2.5 py-1 font-medium text-stone-700">
-                            {color}
-                          </span>
-                        ))}
-                        {resolvedColors.length > 1 ? (
-                          <span className="rounded-full border border-stone-200 px-2.5 py-1 font-medium text-stone-700">+{resolvedColors.length - 1}</span>
-                        ) : null}
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-2xl bg-stone-50 px-3 py-2 text-[11px]">
-                        <div>
-                          <span className="text-stone-500">{t('Suggested')}:</span>{' '}
-                          <span className="font-semibold text-stone-900">
-                            {product.suggestedCommission !== null && product.suggestedCommission !== undefined
-                              ? `${Number(product.suggestedCommission).toFixed(2)} EGP`
-                              : t('Not set')}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-stone-500">{t('Profit')}:</span>{' '}
-                          <span className="font-semibold text-stone-900">{expectedProfit.toFixed(2)} EGP</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-[68px_1fr] gap-2">
-                        <Input
-                          type="number"
-                          min="0"
-                          placeholder={t('Qty')}
-                          value={selectedEntry.quantity || ''}
-                          onChange={(e) =>
-                            setSelectedProducts((prev) => ({
-                              ...prev,
-                              [product._id]: {
-                                quantity: Number(e.target.value || 0),
-                                salePriceByMarketer: prev[product._id]?.salePriceByMarketer || '',
-                              },
-                            }))
-                          }
-                        />
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder={t('Sell price')}
-                          value={selectedEntry.salePriceByMarketer || ''}
-                          onChange={(e) =>
-                            setSelectedProducts((prev) => ({
-                              ...prev,
-                              [product._id]: {
-                                quantity: prev[product._id]?.quantity || 0,
-                                salePriceByMarketer: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <Link href={`/products/${product.slug}`}>
+                        <Link href={`/products/${product.slug}`} className="mt-2 block">
                           <Button className="w-full" type="button" variant="outline">{t('View product')}</Button>
                         </Link>
-                        <Button className="w-full" type="button" onClick={() => addProductToCart(product)}>
-                          {t('Add to cart')}
-                        </Button>
                       </div>
 
-                      <div className="overflow-hidden rounded-2xl border border-stone-200">
-                        <button
-                          type="button"
-                          onClick={() => toggleProductShipping(product._id)}
-                          className="flex w-full items-center justify-between gap-3 bg-stone-50 px-3 py-2.5 text-left transition hover:bg-stone-100"
-                        >
+                      <div className="hidden md:block">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-stone-900">
-                              {shippingSystem?.name || t('Shipping system not assigned')}
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
+                              {product.category}{product.gender ? ` • ${product.gender}` : ''}
                             </p>
-                            <p className="mt-0.5 line-clamp-1 text-[11px] text-stone-500">
-                              {shippingSystem?.notes || (shippingSystem ? `${shippingFeesCount} ${t('governorates configured')}` : t('No shipping details yet'))}
-                            </p>
+                            <h3 className="mt-1 truncate text-[15px] font-semibold text-stone-900">{product.name}</h3>
                           </div>
-                          <ChevronDown className={`h-4 w-4 shrink-0 text-stone-500 transition-transform ${shippingOpen ? 'rotate-180' : ''}`} />
-                        </button>
+                          <div className="text-right">
+                            <p className="text-[10px] text-stone-500">{t('Price')}</p>
+                            <p className="text-sm font-semibold leading-none text-stone-900">{merchantPrice.toFixed(2)} EGP</p>
+                          </div>
+                        </div>
 
-                        {shippingOpen && shippingSystem && (
-                          <div className="border-t border-stone-200 bg-white">
-                            <div className="max-h-44 overflow-auto">
-                              <table className="min-w-full text-xs">
-                                <thead className="bg-stone-50 text-left text-stone-500">
-                                  <tr>
-                                    <th className="px-3 py-2 font-medium">{t('Governorate')}</th>
-                                    <th className="px-3 py-2 font-medium">{t('Fee')}</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {(shippingSystem.governorateFees || []).map((entry) => (
-                                    <tr key={`${product._id}-${entry.governorate}`} className="border-t border-stone-200 text-stone-700">
-                                      <td className="px-3 py-2">{entry.governorate}</td>
-                                      <td className="px-3 py-2 font-medium text-stone-900">{Number(entry.fee).toFixed(2)} EGP</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
+                        <p className="mt-2 line-clamp-1 text-xs text-stone-600">
+                          {product.description || t('No description added yet for this product.')}
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                          {resolvedSizes.slice(0, 2).map((size) => (
+                            <span key={size} className="rounded-full bg-stone-100 px-2.5 py-1 font-medium text-stone-700">
+                              {size}
+                            </span>
+                          ))}
+                          {resolvedSizes.length > 2 ? (
+                            <span className="rounded-full bg-stone-100 px-2.5 py-1 font-medium text-stone-700">+{resolvedSizes.length - 2}</span>
+                          ) : null}
+                          {resolvedColors.slice(0, 1).map((color) => (
+                            <span key={color} className="rounded-full border border-stone-200 px-2.5 py-1 font-medium text-stone-700">
+                              {color}
+                            </span>
+                          ))}
+                          {resolvedColors.length > 1 ? (
+                            <span className="rounded-full border border-stone-200 px-2.5 py-1 font-medium text-stone-700">+{resolvedColors.length - 1}</span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between rounded-2xl bg-stone-50 px-3 py-2 text-[11px]">
+                          <div>
+                            <span className="text-stone-500">{t('Suggested')}:</span>{' '}
+                            <span className="font-semibold text-stone-900">
+                              {product.suggestedCommission !== null && product.suggestedCommission !== undefined
+                                ? `${Number(product.suggestedCommission).toFixed(2)} EGP`
+                                : t('Not set')}
+                            </span>
                           </div>
-                        )}
+                          <div>
+                            <span className="text-stone-500">{t('Profit')}:</span>{' '}
+                            <span className="font-semibold text-stone-900">{expectedProfit.toFixed(2)} EGP</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-[68px_1fr] gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder={t('Qty')}
+                            value={selectedEntry.quantity || ''}
+                            onChange={(e) =>
+                              setSelectedProducts((prev) => ({
+                                ...prev,
+                                [product._id]: {
+                                  quantity: Number(e.target.value || 0),
+                                  salePriceByMarketer: prev[product._id]?.salePriceByMarketer || '',
+                                },
+                              }))
+                            }
+                          />
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder={t('Sell price')}
+                            value={selectedEntry.salePriceByMarketer || ''}
+                            onChange={(e) =>
+                              setSelectedProducts((prev) => ({
+                                ...prev,
+                                [product._id]: {
+                                  quantity: prev[product._id]?.quantity || 0,
+                                  salePriceByMarketer: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <Link href={`/products/${product.slug}`}>
+                            <Button className="w-full" type="button" variant="outline">{t('View product')}</Button>
+                          </Link>
+                          <Button className="w-full" type="button" onClick={() => addProductToCart(product)}>
+                            {t('Add to cart')}
+                          </Button>
+                        </div>
+
+                        <div className="mt-2 overflow-hidden rounded-2xl border border-stone-200">
+                          <button
+                            type="button"
+                            onClick={() => toggleProductShipping(product._id)}
+                            className="flex w-full items-center justify-between gap-3 bg-stone-50 px-3 py-2.5 text-left transition hover:bg-stone-100"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-stone-900">
+                                {shippingSystem?.name || t('Shipping system not assigned')}
+                              </p>
+                              <p className="mt-0.5 line-clamp-1 text-[11px] text-stone-500">
+                                {shippingSystem?.notes || (shippingSystem ? `${shippingFeesCount} ${t('governorates configured')}` : t('No shipping details yet'))}
+                              </p>
+                            </div>
+                            <ChevronDown className={`h-4 w-4 shrink-0 text-stone-500 transition-transform ${shippingOpen ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {shippingOpen && shippingSystem && (
+                            <div className="border-t border-stone-200 bg-white">
+                              <div className="max-h-44 overflow-auto">
+                                <table className="min-w-full text-xs">
+                                  <thead className="bg-stone-50 text-left text-stone-500">
+                                    <tr>
+                                      <th className="px-3 py-2 font-medium">{t('Governorate')}</th>
+                                      <th className="px-3 py-2 font-medium">{t('Fee')}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(shippingSystem.governorateFees || []).map((entry) => (
+                                      <tr key={`${product._id}-${entry.governorate}`} className="border-t border-stone-200 text-stone-700">
+                                        <td className="px-3 py-2">{entry.governorate}</td>
+                                        <td className="px-3 py-2 font-medium text-stone-900">{Number(entry.fee).toFixed(2)} EGP</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -8,7 +8,6 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'FamilyStore - Clothing & Accessories for the Whole Family',
   description: 'Shop quality clothing, shoes, and accessories for men, women, and children. Fast delivery across Egypt.',
-  generator: 'v0.app',
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg',

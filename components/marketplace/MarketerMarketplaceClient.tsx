@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const PAGE_SIZE = 24;
-const PRODUCT_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw';
+const PRODUCT_IMAGE_SIZES = '(max-width: 768px) 50vw, (max-width: 1280px) 50vw, 25vw';
 
 type MarketplaceProduct = {
   _id: string;
@@ -187,15 +187,21 @@ export default function MarketerMarketplaceClient({
                 Filter by merchant, build your cart, and confirm orders. Checkout will split the cart into separate merchant orders automatically.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               <Link href="/marketer/dashboard">
-                <Button variant="outline">My dashboard</Button>
+                <Button size="sm" variant="outline">My dashboard</Button>
               </Link>
               <Link href="/admin/orders">
-                <Button variant="outline">My orders</Button>
+                <Button size="sm" variant="outline">My orders</Button>
+              </Link>
+              <Link href="/admin/commissions">
+                <Button size="sm" variant="outline">Commissions</Button>
+              </Link>
+              <Link href="/admin/notifications">
+                <Button size="sm" variant="outline">Notifications</Button>
               </Link>
               <Link href="/cart">
-                <Button className="gap-2">
+                <Button size="sm" className="gap-2">
                   <ShoppingCart className="h-4 w-4" />
                   Cart ({totalCartItems})
                 </Button>
@@ -236,13 +242,13 @@ export default function MarketerMarketplaceClient({
           </div>
         </Card>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
           {products.map((product, index) => {
             const merchantName = merchantNameMap.get(String(product.merchantId)) || String(product.merchantName || 'Merchant');
             const merchantPrice = Number(product.merchantPrice || product.price || 0);
             const isLikelyLcpImage = index === 0 && page === 1;
             return (
-              <Card key={product._id} className="overflow-hidden rounded-[28px] border-stone-200 p-0">
+              <Card key={product._id} className="overflow-hidden rounded-2xl border-stone-200 p-0 sm:rounded-[28px]">
                 <div className="relative aspect-square bg-stone-100">
                   <Image
                     src={product.images?.[0] || '/placeholder.jpg'}
@@ -254,34 +260,35 @@ export default function MarketerMarketplaceClient({
                     quality={70}
                   />
                 </div>
-                <div className="space-y-3 p-4">
+                <div className="space-y-2 p-2.5 sm:space-y-3 sm:p-4">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-stone-500">{merchantName}</p>
-                    <h2 className="mt-1 line-clamp-1 text-lg font-semibold text-stone-900">{product.name}</h2>
-                    <p className="mt-1 line-clamp-2 text-sm text-stone-600">
+                    <p className="truncate text-[10px] uppercase tracking-[0.14em] text-stone-500 sm:text-[11px] sm:tracking-[0.18em]">{merchantName}</p>
+                    <h2 className="mt-1 line-clamp-1 text-sm font-semibold text-stone-900 sm:text-lg">{product.name}</h2>
+                    <p className="mt-1 line-clamp-2 text-[11px] text-stone-600 sm:text-sm">
                       {product.description || 'No description added yet for this product.'}
                     </p>
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-50 px-3 py-2">
+                  <div className="flex items-center justify-between rounded-xl bg-stone-50 px-2 py-1.5 sm:rounded-2xl sm:px-3 sm:py-2">
                     <div>
-                      <p className="text-[11px] text-stone-500">Merchant price</p>
-                      <p className="text-sm font-semibold text-stone-900">{merchantPrice.toFixed(2)} EGP</p>
+                      <p className="text-[10px] text-stone-500">Merchant price</p>
+                      <p className="text-xs font-semibold text-stone-900 sm:text-sm">{merchantPrice.toFixed(2)} EGP</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[11px] text-stone-500">Suggested commission</p>
-                      <p className="text-sm font-semibold text-stone-900">
+                      <p className="text-[10px] text-stone-500">Suggested commission</p>
+                      <p className="text-xs font-semibold text-stone-900 sm:text-sm">
                         {product.suggestedCommission !== null && product.suggestedCommission !== undefined
                           ? `${Number(product.suggestedCommission).toFixed(2)} EGP`
                           : 'Not set'}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 sm:gap-2">
                     <Link className="flex-1" href={`/merchant/${product.merchantId}`}>
-                      <Button variant="outline" className="w-full">Merchant</Button>
+                      <Button size="sm" variant="outline" className="w-full px-2 text-xs sm:text-sm">Merchant</Button>
                     </Link>
                     <Button
-                      className="flex-1"
+                      size="sm"
+                      className="flex-1 px-2 text-xs sm:text-sm"
                       onClick={() => {
                         const result = addItem({
                           productId: product._id,

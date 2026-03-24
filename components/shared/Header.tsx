@@ -30,6 +30,12 @@ export function Header() {
     { href: "/contact", label: t("Contact") },
   ];
 
+  const marketerQuickLinks = [
+    { href: "/marketer/dashboard", label: t("Dashboard") },
+    { href: "/shop", label: t("Marketplace") },
+    { href: "/cart", label: t("Cart") },
+    { href: "/admin/orders", label: t("Orders") },
+  ];
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
@@ -116,6 +122,27 @@ export function Header() {
           </div>
         </div>
 
+        {isMarketerLoggedIn && (
+          <nav className="md:hidden border-t border-border py-2">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {marketerQuickLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive(link.href) ? "page" : undefined}
+                  className={cn(
+                    "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                    isActive(link.href)
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-foreground hover:bg-muted"
+                  )}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        )}
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <nav className="md:hidden border-t border-border py-4 space-y-3">

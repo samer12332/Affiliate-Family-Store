@@ -141,16 +141,18 @@ export default async function MarketerDashboardPage() {
             <h1 className="mt-2 text-3xl font-bold text-stone-900">Your commission snapshot</h1>
             <p className="mt-2 text-sm text-stone-600">Delivered dues are only visible after the merchant marks the order as delivered.</p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/merchant-directory"><Button variant="outline">Marketplace</Button></Link>
-            <Link href="/cart"><Button variant="outline">Cart</Button></Link>
-            <Link href="/admin/commissions"><Button variant="outline">Commissions</Button></Link>
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            <Link href="/merchant-directory"><Button size="sm" variant="outline">Marketplace</Button></Link>
+            <Link href="/categories/clothes"><Button size="sm" variant="outline">Clothes</Button></Link>
+            <Link href="/categories/shoes"><Button size="sm" variant="outline">Shoes</Button></Link>
+            <Link href="/cart"><Button size="sm" variant="outline">Cart</Button></Link>
+            <Link href="/admin/commissions"><Button size="sm" variant="outline">Commissions</Button></Link>
             <Link href="/admin/notifications">
-              <Button variant="outline">
+              <Button size="sm" variant="outline">
                 {`Notifications${unreadNotifications > 0 ? ` (${Math.min(unreadNotifications, 99)}${unreadNotifications > 99 ? '+' : ''})` : ''}`}
               </Button>
             </Link>
-            <Link href="/admin/orders"><Button>My orders</Button></Link>
+            <Link href="/admin/orders"><Button size="sm">My orders</Button></Link>
           </div>
         </div>
 
