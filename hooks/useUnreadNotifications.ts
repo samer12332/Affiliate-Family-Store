@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 
 type UnreadNotificationsState = {
@@ -72,6 +72,7 @@ export async function fetchUnreadNotificationsCount(token: string) {
 
 export function useUnreadNotifications() {
   const { token, isLoading } = useAdminAuth();
+  const lastTokenRef = useRef<string>("");
   const snapshot = useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
@@ -85,11 +86,17 @@ export function useUnreadNotifications() {
     if (isLoading) return;
 
     if (!token) {
+      lastTokenRef.current = "";
       setUnreadNotificationsCount(0);
       return;
     }
 
-    if (!snapshot.initialized) {
+    const tokenChanged = lastTokenRef.current !== token;
+    if (tokenChanged) {
+      lastTokenRef.current = token;
+    }
+
+    if (!snapshot.initialized || tokenChanged) {
       void fetchUnreadNotificationsCount(token);
     }
   }, [isLoading, snapshot.initialized, token]);

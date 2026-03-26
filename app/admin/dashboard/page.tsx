@@ -3,13 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
 import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 import { isAdminRole, isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { useI18n } from '@/components/i18n/LanguageProvider';
 
@@ -50,10 +48,9 @@ interface DashboardData {
 export default function DashboardPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const { admin, token, isLoading, logout } = useAdminAuth();
+  const { admin, token, isLoading } = useAdminAuth();
   const { get } = useApi();
   const [data, setData] = useState<DashboardData | null>(null);
-  const unreadNotifications = useUnreadNotifications();
 
   useEffect(() => {
     if (isLoading) return;
@@ -80,45 +77,47 @@ export default function DashboardPage() {
   const cards =
     role === 'marketer'
       ? [
-          { label: t('My orders'), value: data?.totalOrders ?? 0 },
-          { label: 'Pending dues', value: `${Number(data?.visibleDuesPending ?? data?.visibleDues ?? 0).toFixed(2)} EGP` },
-          { label: 'Received dues', value: `${Number(data?.visibleDuesReceived || 0).toFixed(2)} EGP` },
-          { label: 'Delivered', value: data?.statusCounts?.delivered ?? 0 },
+          { label: t('My orders'), value: data?.totalOrders ?? 0, href: '/admin/orders' },
+          { label: 'Pending dues', value: `${Number(data?.visibleDuesPending ?? data?.visibleDues ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+          { label: 'Received dues', value: `${Number(data?.visibleDuesReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+          { label: 'Delivered', value: data?.statusCounts?.delivered ?? 0, href: '/admin/orders?status=delivered' },
         ]
       : isSubmerchantRole(role)
         ? [
-            { label: t('Orders'), value: data?.totalOrders ?? 0 },
-            { label: t('Products'), value: data?.totalProducts ?? 0 },
-            { label: 'Payable to marketers (pending)', value: `${Number(data?.payableToMarketersPending ?? data?.payableToMarketers ?? 0).toFixed(2)} EGP` },
-            { label: 'Payable to marketers (received)', value: `${Number(data?.payableToMarketersReceived || 0).toFixed(2)} EGP` },
+            { label: t('Orders'), value: data?.totalOrders ?? 0, href: '/admin/orders' },
+            { label: t('Products'), value: data?.totalProducts ?? 0, href: '/admin/products' },
+            { label: 'Payable to marketers (pending)', value: `${Number(data?.payableToMarketersPending ?? data?.payableToMarketers ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+            { label: 'Payable to marketers (received)', value: `${Number(data?.payableToMarketersReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
             {
               label: 'System commissions (pending)',
               value: `${(Number(data?.ownerCommissionDuePending ?? data?.ownerCommissionDue ?? 0) + Number(data?.mainMerchantCommissionDuePending ?? data?.mainMerchantCommissionDue ?? 0)).toFixed(2)} EGP`,
+              href: '/admin/commissions',
             },
             {
               label: 'System commissions (received)',
               value: `${(Number(data?.ownerCommissionDueReceived || 0) + Number(data?.mainMerchantCommissionDueReceived || 0)).toFixed(2)} EGP`,
+              href: '/admin/commissions',
             },
           ]
         : isMainMerchantRole(role)
           ? [
-              { label: t('Submerchants'), value: data?.managedSubmerchants ?? 0 },
-              { label: t('Marketers'), value: data?.managedMarketers ?? 0 },
-              { label: t('Orders'), value: data?.totalOrders ?? 0 },
-              { label: t('Products'), value: data?.totalProducts ?? 0 },
-              { label: 'My commissions (pending)', value: `${Number(data?.totalMainMerchantCommissionsPending ?? data?.totalMainMerchantCommissions ?? 0).toFixed(2)} EGP` },
-              { label: 'My commissions (received)', value: `${Number(data?.totalMainMerchantCommissionsReceived || 0).toFixed(2)} EGP` },
+              { label: t('Submerchants'), value: data?.managedSubmerchants ?? 0, href: '/admin/users' },
+              { label: t('Marketers'), value: data?.managedMarketers ?? 0, href: '/admin/users' },
+              { label: t('Orders'), value: data?.totalOrders ?? 0, href: '/admin/orders' },
+              { label: t('Products'), value: data?.totalProducts ?? 0, href: '/admin/products' },
+              { label: 'My commissions (pending)', value: `${Number(data?.totalMainMerchantCommissionsPending ?? data?.totalMainMerchantCommissions ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              { label: 'My commissions (received)', value: `${Number(data?.totalMainMerchantCommissionsReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
             ]
         : [
-            { label: t('Orders'), value: data?.totalOrders ?? 0 },
-            { label: t('Products'), value: data?.totalProducts ?? 0 },
-            { label: t('Submerchants'), value: data?.totalMerchants ?? 0 },
-            { label: t('Main merchants'), value: data?.totalMainMerchants ?? 0 },
-            { label: t('Marketers'), value: data?.totalMarketers ?? 0 },
+            { label: t('Orders'), value: data?.totalOrders ?? 0, href: '/admin/orders' },
+            { label: t('Products'), value: data?.totalProducts ?? 0, href: '/admin/products' },
+            { label: t('Submerchants'), value: data?.totalMerchants ?? 0, href: '/admin/users' },
+            { label: t('Main merchants'), value: data?.totalMainMerchants ?? 0, href: '/admin/users' },
+            { label: t('Marketers'), value: data?.totalMarketers ?? 0, href: '/admin/users' },
             ...(isAdminRole(role)
               ? [
-                  { label: 'Owner commissions (pending)', value: `${Number(data?.totalCommissionsPending ?? data?.totalCommissions ?? 0).toFixed(2)} EGP` },
-                  { label: 'Owner commissions (received)', value: `${Number(data?.totalCommissionsReceived || 0).toFixed(2)} EGP` },
+                  { label: 'Owner commissions (pending)', value: `${Number(data?.totalCommissionsPending ?? data?.totalCommissions ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+                  { label: 'Owner commissions (received)', value: `${Number(data?.totalCommissionsReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
                 ]
               : []),
           ];
@@ -132,35 +131,16 @@ export default function DashboardPage() {
             <h1 className="mt-2 text-3xl font-bold text-stone-900">{t('Welcome,')} {admin.name}</h1>
             <p className="mt-1 text-sm text-stone-600">{admin.email}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/admin/notifications" className="relative">
-              <Button variant="outline" size="icon" aria-label="Notifications">
-                <Bell className="h-5 w-5" />
-              </Button>
-              {unreadNotifications > 0 && (
-                <span className="absolute -right-1 -top-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </span>
-              )}
-            </Link>
-            <Button
-              variant="outline"
-              onClick={() => {
-                logout();
-                router.push('/admin/login');
-              }}
-            >
-              {t('Logout')}
-            </Button>
-          </div>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => (
-            <Card key={card.label} className="rounded-3xl border-stone-200 p-6">
-              <p className="text-sm text-stone-500">{card.label}</p>
-              <p className="mt-3 text-3xl font-bold text-stone-900">{card.value}</p>
-            </Card>
+            <Link key={`${card.label}-${card.href}`} href={card.href} className="block">
+              <Card className="rounded-3xl border-stone-200 p-6 transition hover:border-stone-300 hover:shadow-sm">
+                <p className="text-sm text-stone-500">{card.label}</p>
+                <p className="mt-3 text-3xl font-bold text-stone-900">{card.value}</p>
+              </Card>
+            </Link>
           ))}
         </div>
 

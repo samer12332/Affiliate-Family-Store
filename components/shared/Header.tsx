@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ShoppingCart, Menu, X, Search, Bell } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
-import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
+import { fetchUnreadNotificationsCount, useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { cn } from "@/lib/utils";
 import { SiteLogo } from "@/components/shared/SiteLogo";
 import { useI18n } from "@/components/i18n/LanguageProvider";
@@ -26,6 +26,13 @@ export function Header() {
   const isAdminLoggedIn = isAuthenticated && (normalizedRole === "owner" || normalizedRole === "admin");
   const unreadNotifications = useUnreadNotifications();
   const totalCartItems = getTotalItems();
+
+  useEffect(() => {
+    if (!token || isLoading || !pathname) return;
+    if (pathname === "/admin/dashboard" || pathname === "/marketer/dashboard") {
+      void fetchUnreadNotificationsCount(token);
+    }
+  }, [isLoading, pathname, token]);
 
   const publicNavLinks = [
     { href: "/shop", label: t("Shop") },

@@ -1,5 +1,6 @@
-import { cookies } from 'next/headers';
+﻿import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Card } from '@/components/ui/card';
 import { connectDB } from '@/lib/db';
@@ -8,6 +9,27 @@ import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { verifyToken } from '@/server/utils/auth';
 
 const DASHBOARD_RECENT_ORDERS_LIMIT = 10;
+
+function serializeRecentOrder(order: any) {
+  const statusHistory = Array.isArray(order?.statusHistory) ? order.statusHistory : [];
+  return {
+    _id: String(order?._id || ''),
+    orderNumber: String(order?.orderNumber || ''),
+    status: String(order?.status || ''),
+    customer: {
+      name: String(order?.customer?.name || ''),
+    },
+    merchantId: String(order?.merchantId || ''),
+    marketerId: String(order?.marketerId || ''),
+    createdAt: order?.createdAt ? new Date(order.createdAt).toISOString() : null,
+    updatedAt: order?.updatedAt ? new Date(order.updatedAt).toISOString() : null,
+    statusHistory: statusHistory.map((entry: any) => ({
+      status: String(entry?.status || ''),
+      changedAt: entry?.changedAt ? new Date(entry.changedAt).toISOString() : null,
+      changedBy: entry?.changedBy ? String(entry.changedBy) : '',
+    })),
+  };
+}
 
 async function getOrderStatusCounts(orderQuery: Record<string, any>) {
   const rows = await Order.aggregate([
@@ -124,7 +146,7 @@ export default async function MarketerDashboardPage() {
   const data = {
     totalOrders,
     statusCounts,
-    recentOrders,
+    recentOrders: (recentOrders || []).map(serializeRecentOrder),
     visibleDuesPending: settlement.pending,
     visibleDuesReceived: settlement.received,
   };
@@ -142,24 +164,32 @@ export default async function MarketerDashboardPage() {
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="rounded-3xl border-stone-200 p-6">
-            <p className="text-sm text-stone-500">Total orders</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{data.totalOrders}</p>
-          </Card>
-          <Card className="rounded-3xl border-stone-200 p-6">
-            <p className="text-sm text-stone-500">Pending dues</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">
-              {Number(data.visibleDuesPending).toFixed(2)} EGP
-            </p>
-          </Card>
-          <Card className="rounded-3xl border-stone-200 p-6">
-            <p className="text-sm text-stone-500">Received dues</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{Number(data.visibleDuesReceived).toFixed(2)} EGP</p>
-          </Card>
-          <Card className="rounded-3xl border-stone-200 p-6">
-            <p className="text-sm text-stone-500">Pending orders</p>
-            <p className="mt-3 text-3xl font-bold text-stone-900">{data.statusCounts?.pending ?? 0}</p>
-          </Card>
+          <Link href="/admin/orders" className="block">
+            <Card className="rounded-3xl border-stone-200 p-6 transition hover:border-stone-300 hover:shadow-sm">
+              <p className="text-sm text-stone-500">Total orders</p>
+              <p className="mt-3 text-3xl font-bold text-stone-900">{data.totalOrders}</p>
+            </Card>
+          </Link>
+          <Link href="/admin/commissions" className="block">
+            <Card className="rounded-3xl border-stone-200 p-6 transition hover:border-stone-300 hover:shadow-sm">
+              <p className="text-sm text-stone-500">Pending dues</p>
+              <p className="mt-3 text-3xl font-bold text-stone-900">
+                {Number(data.visibleDuesPending).toFixed(2)} EGP
+              </p>
+            </Card>
+          </Link>
+          <Link href="/admin/commissions" className="block">
+            <Card className="rounded-3xl border-stone-200 p-6 transition hover:border-stone-300 hover:shadow-sm">
+              <p className="text-sm text-stone-500">Received dues</p>
+              <p className="mt-3 text-3xl font-bold text-stone-900">{Number(data.visibleDuesReceived).toFixed(2)} EGP</p>
+            </Card>
+          </Link>
+          <Link href="/admin/orders?status=pending" className="block">
+            <Card className="rounded-3xl border-stone-200 p-6 transition hover:border-stone-300 hover:shadow-sm">
+              <p className="text-sm text-stone-500">Pending orders</p>
+              <p className="mt-3 text-3xl font-bold text-stone-900">{data.statusCounts?.pending ?? 0}</p>
+            </Card>
+          </Link>
         </div>
 
         <Card className="mt-8 rounded-3xl border-stone-200 p-6">
@@ -187,4 +217,5 @@ export default async function MarketerDashboardPage() {
     </div>
   );
 }
+
 
