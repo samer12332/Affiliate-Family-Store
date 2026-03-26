@@ -84,7 +84,7 @@ export async function PATCH(
       canMarkPaid = isActorSubmerchant;
       canMarkReceived = isActorMainMerchant;
     } else {
-      canMarkPaid = isActorSubmerchant || isActorMainMerchant || isActorOwner;
+      canMarkPaid = isActorSubmerchant;
       canMarkReceived = isActorMarketer;
     }
 

@@ -312,6 +312,9 @@ export async function GET(request: NextRequest) {
         totalMainMerchantCommissions: settlementTotals.mainMerchantPending,
         totalMainMerchantCommissionsPending: settlementTotals.mainMerchantPending,
         totalMainMerchantCommissionsReceived: settlementTotals.mainMerchantReceived,
+        ownerCommissionDue: settlementTotals.ownerPending,
+        ownerCommissionDuePending: settlementTotals.ownerPending,
+        ownerCommissionDueReceived: settlementTotals.ownerReceived,
       });
     }
 
@@ -330,4 +333,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

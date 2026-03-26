@@ -107,6 +107,8 @@ export default function DashboardPage() {
               { label: t('Products'), value: data?.totalProducts ?? 0, href: '/admin/products' },
               { label: 'My commissions (pending)', value: `${Number(data?.totalMainMerchantCommissionsPending ?? data?.totalMainMerchantCommissions ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
               { label: 'My commissions (received)', value: `${Number(data?.totalMainMerchantCommissionsReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              { label: t('Due to system owner (pending)'), value: `${Number(data?.ownerCommissionDuePending ?? data?.ownerCommissionDue ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              { label: t('Paid to system owner (received)'), value: `${Number(data?.ownerCommissionDueReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
             ]
         : [
             { label: t('Orders'), value: data?.totalOrders ?? 0, href: '/admin/orders' },
@@ -205,5 +207,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-

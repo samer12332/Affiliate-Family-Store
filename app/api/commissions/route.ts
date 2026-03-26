@@ -1,4 +1,4 @@
-﻿import { requireRole } from '@/lib/auth';
+import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Commission, Order, User } from '@/lib/models';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
           channel: 'marketer',
           amount: Number(commission.marketerAmount || 0),
           settlement: commission.marketerSettlement || {},
-          canMarkPaid: isActorSubmerchant || isActorMainMerchant || isActorOwner,
+          canMarkPaid: isActorSubmerchant,
           canMarkReceived: isActorMarketer,
         },
       ]

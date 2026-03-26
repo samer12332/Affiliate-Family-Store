@@ -254,6 +254,8 @@ const ARABIC_MAP: Record<string, string> = {
   'Mark commission payments and receipts. Receiving is enabled only after sender marks paid.': 'حدد مدفوعات واستلامات العمولات. يتم تفعيل الاستلام فقط بعد أن يقوم المرسل بتحديد الدفع.',
   'Pending commissions': 'العمولات المعلقة',
   'Received commissions': 'العمولات المستلمة',
+  'Due to system owner (pending)': 'العمولات المعلقة',
+  'Paid to system owner (received)': 'العمولات المستلمة',
   'Loading commissions...': 'جارٍ تحميل العمولات...',
   'No commission records yet.': 'لا توجد سجلات عمولات بعد.',
   Status: 'الحالة',
