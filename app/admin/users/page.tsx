@@ -50,6 +50,7 @@ export default function UsersPage() {
     router.push('/admin/dashboard');
     return null;
   }
+  const currentAdminId = String(admin.id || admin._id || '');
 
   const mainMerchants = users.filter((entry) => normalizeRole(entry.role) === 'main_merchant');
 
@@ -131,6 +132,10 @@ export default function UsersPage() {
         <div className="grid gap-4">
           {users.map((user) => (
             <Card key={user._id} className="rounded-3xl p-6">
+              {(() => {
+                const isSelf = String(user._id || '') === currentAdminId;
+                const canDeactivateUser = !user.isProtected && !(isMainMerchantRole(role) && isSelf && user.active);
+                return (
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">{user.name}</h2>
@@ -138,7 +143,7 @@ export default function UsersPage() {
                   <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">{normalizeRole(user.role)}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {!user.isProtected && (
+                  {canDeactivateUser && (
                     <Button
                       variant="outline"
                       onClick={async () => {
@@ -185,6 +190,8 @@ export default function UsersPage() {
                   )}
                 </div>
               </div>
+                );
+              })()}
             </Card>
           ))}
         </div>

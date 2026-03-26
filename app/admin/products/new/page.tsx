@@ -19,6 +19,8 @@ import {
 } from '@/lib/constants';
 import { isAdminRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
 
+type ProductFieldErrorKey = 'name' | 'merchantPrice' | 'shippingSystemId' | 'stock' | 'images' | 'general';
+
 export default function NewProductPage() {
   const router = useRouter();
   const { admin, token, isLoading } = useAdminAuth();
@@ -26,7 +28,7 @@ export default function NewProductPage() {
   const [shippingSystems, setShippingSystems] = useState<any[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProductFieldErrorKey, string>>>({});
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -60,6 +62,16 @@ export default function NewProductPage() {
       .catch((error) => console.error('[v0] Failed to fetch shipping systems', error));
   }, [get, isLoading, router, token]);
 
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach((preview) => {
+        if (preview.startsWith('blob:')) {
+          URL.revokeObjectURL(preview);
+        }
+      });
+    };
+  }, [imagePreviews]);
+
   if (isLoading || !token || !admin) return null;
   const role = normalizeRole(admin.role);
   if (!isAdminRole(role) && !isSubmerchantRole(role)) {
@@ -70,6 +82,10 @@ export default function NewProductPage() {
   const totalCommissionRate =
     OWNER_COMMISSION_RATE + (hasMainMerchant ? MAIN_MERCHANT_COMMISSION_RATE : 0);
   const isShoesCategory = formData.category === 'Shoes';
+
+  const clearFieldError = (field: ProductFieldErrorKey) => {
+    setFieldErrors((prev) => ({ ...prev, [field]: '' }));
+  };
 
   const parseSizeInput = (value: string, isShoes: boolean) => {
     if (isShoes) {
@@ -104,35 +120,25 @@ export default function NewProductPage() {
     return { sizeWeightChart, sizes };
   };
 
-  useEffect(() => {
-    return () => {
-      imagePreviews.forEach((preview) => {
-        if (preview.startsWith('blob:')) {
-          URL.revokeObjectURL(preview);
-        }
-      });
-    };
-  }, [imagePreviews]);
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
     const invalidFile = files.find((file) => !file.type.startsWith('image/'));
     if (invalidFile) {
-      setError('Only image files can be uploaded for products.');
+      setFieldErrors((prev) => ({ ...prev, images: 'Only image files can be uploaded for products.' }));
       event.target.value = '';
       return;
     }
 
     const mergedFiles = [...selectedFiles, ...files];
     if (mergedFiles.length > MAX_PRODUCT_IMAGES) {
-      setError(`You can upload up to ${MAX_PRODUCT_IMAGES} images per product.`);
+      setFieldErrors((prev) => ({ ...prev, images: `You can upload up to ${MAX_PRODUCT_IMAGES} images per product.` }));
       event.target.value = '';
       return;
     }
 
-    setError('');
+    clearFieldError('images');
     setSelectedFiles(mergedFiles);
     imagePreviews.forEach((preview) => {
       if (preview.startsWith('blob:')) {
@@ -157,26 +163,26 @@ export default function NewProductPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
+    setFieldErrors({});
 
     if (!formData.name.trim()) {
-      setError('Product name is required.');
+      setFieldErrors({ name: 'Product name is required.' });
       return;
     }
     if (!Number.isFinite(Number(formData.merchantPrice)) || Number(formData.merchantPrice) < 0) {
-      setError('Please provide a valid merchant price.');
+      setFieldErrors({ merchantPrice: 'Please provide a valid merchant price.' });
       return;
     }
     if (!formData.shippingSystemId) {
-      setError('Please create or select a shipping system before saving this product.');
+      setFieldErrors({ shippingSystemId: 'Please create or select a shipping system before saving this product.' });
       return;
     }
     if (!Number.isInteger(Number(formData.stock)) || Number(formData.stock) < 0) {
-      setError('Please provide a valid non-negative stock quantity.');
+      setFieldErrors({ stock: 'Please provide a valid non-negative stock quantity.' });
       return;
     }
     if (selectedFiles.length > MAX_PRODUCT_IMAGES) {
-      setError(`You can upload up to ${MAX_PRODUCT_IMAGES} images per product.`);
+      setFieldErrors({ images: `You can upload up to ${MAX_PRODUCT_IMAGES} images per product.` });
       return;
     }
 
@@ -211,7 +217,35 @@ export default function NewProductPage() {
 
       router.push('/admin/products');
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Failed to create product');
+      const message = submitError instanceof Error ? submitError.message : 'Failed to create product';
+      if (message.includes('BLOB_READ_WRITE_TOKEN is not configured')) {
+        setFieldErrors({
+          images:
+            'Image upload is not configured on the server. Please set BLOB_READ_WRITE_TOKEN in environment variables.',
+        });
+        return;
+      }
+      if (message.includes('upload product image') || message.includes('image')) {
+        setFieldErrors({ images: message });
+        return;
+      }
+      if (message.includes('Product name')) {
+        setFieldErrors({ name: message });
+        return;
+      }
+      if (message.includes('merchant price')) {
+        setFieldErrors({ merchantPrice: message });
+        return;
+      }
+      if (message.includes('shipping system')) {
+        setFieldErrors({ shippingSystemId: message });
+        return;
+      }
+      if (message.includes('stock')) {
+        setFieldErrors({ stock: message });
+        return;
+      }
+      setFieldErrors({ general: message });
     } finally {
       setSaving(false);
     }
@@ -231,7 +265,11 @@ export default function NewProductPage() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Product name</label>
-              <Input required maxLength={160} placeholder="Product name" value={formData.name} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} />
+              <Input required maxLength={160} placeholder="Product name" value={formData.name} onChange={(e) => {
+                setFormData((prev) => ({ ...prev, name: e.target.value }));
+                clearFieldError('name');
+              }} />
+              {fieldErrors.name && <p className="text-sm text-destructive">{fieldErrors.name}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Slug</label>
@@ -239,7 +277,10 @@ export default function NewProductPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Merchant price</label>
-              <Input required type="number" min="0" max="1000000" step="0.01" placeholder="Merchant price" value={formData.merchantPrice} onChange={(e) => setFormData((prev) => ({ ...prev, merchantPrice: e.target.value }))} />
+              <Input required type="number" min="0" max="1000000" step="0.01" placeholder="Merchant price" value={formData.merchantPrice} onChange={(e) => {
+                setFormData((prev) => ({ ...prev, merchantPrice: e.target.value }));
+                clearFieldError('merchantPrice');
+              }} />
               {isSubmerchantRole(role) && (
                 <p className="text-xs text-muted-foreground">
                   This price includes commission deductions of {(totalCommissionRate * 100).toFixed(0)}%
@@ -247,10 +288,15 @@ export default function NewProductPage() {
                   {hasMainMerchant ? ` + ${(MAIN_MERCHANT_COMMISSION_RATE * 100).toFixed(0)}% main merchant` : ''}).
                 </p>
               )}
+              {fieldErrors.merchantPrice && <p className="text-sm text-destructive">{fieldErrors.merchantPrice}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Stock quantity</label>
-              <Input required type="number" min="0" max="1000000" step="1" placeholder="Stock quantity" value={formData.stock} onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))} />
+              <Input required type="number" min="0" max="1000000" step="1" placeholder="Stock quantity" value={formData.stock} onChange={(e) => {
+                setFormData((prev) => ({ ...prev, stock: e.target.value }));
+                clearFieldError('stock');
+              }} />
+              {fieldErrors.stock && <p className="text-sm text-destructive">{fieldErrors.stock}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Suggested commission (optional)</label>
@@ -285,12 +331,16 @@ export default function NewProductPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Shipping system</label>
-              <select required value={formData.shippingSystemId} onChange={(e) => setFormData((prev) => ({ ...prev, shippingSystemId: e.target.value }))} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
+              <select required value={formData.shippingSystemId} onChange={(e) => {
+                setFormData((prev) => ({ ...prev, shippingSystemId: e.target.value }));
+                clearFieldError('shippingSystemId');
+              }} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
                 {shippingSystems.length === 0 && <option value="">No shipping systems available</option>}
                 {shippingSystems.map((system) => (
                   <option key={system._id} value={system._id}>{system.name}</option>
                 ))}
               </select>
+              {fieldErrors.shippingSystemId && <p className="text-sm text-destructive">{fieldErrors.shippingSystemId}</p>}
             </div>
             <div className="space-y-3">
               <label className="text-sm font-medium text-foreground">Product images</label>
@@ -298,6 +348,7 @@ export default function NewProductPage() {
               <p className="text-xs text-muted-foreground">
                 Images only. Maximum {MAX_PRODUCT_IMAGES} images per product.
               </p>
+              {fieldErrors.images && <p className="text-sm text-destructive">{fieldErrors.images}</p>}
               {imagePreviews.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {imagePreviews.map((src, index) => (
@@ -324,7 +375,7 @@ export default function NewProductPage() {
               <textarea value={formData.description} onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} className="min-h-32 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Description" />
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {fieldErrors.general && <p className="text-sm text-destructive">{fieldErrors.general}</p>}
             <Button type="submit" className="w-full" disabled={saving}>
               {saving ? 'Saving product...' : 'Save product'}
             </Button>

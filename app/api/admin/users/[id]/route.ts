@@ -40,6 +40,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'You can only manage your own submerchants and marketers' }, { status: 403 });
     }
 
+    if (isMainMerchantRole(actorRole) && auth.user._id.toString() === id && body.active === false) {
+      return NextResponse.json({ error: 'Main merchants cannot deactivate their own account' }, { status: 400 });
+    }
+
     if (user.isProtected && actorRole !== 'owner') {
       return NextResponse.json({ error: 'Protected owner cannot be modified by this user' }, { status: 403 });
     }
