@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
-import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -128,8 +127,6 @@ export default function StocksPage() {
             <Button variant="outline">Back to dashboard</Button>
           </Link>
         </div>
-
-        {isSubmerchantRole(role) && <MerchantNav />}
 
         <Card className="mb-6 rounded-3xl p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_260px_auto]">

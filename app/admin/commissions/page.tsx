@@ -1,32 +1,45 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
+import { useI18n } from '@/components/i18n/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+
+const PAGE_SIZE = 20;
 
 export default function CommissionsPage() {
   const router = useRouter();
   const { admin, token, isLoading } = useAdminAuth();
   const { get, request } = useApi();
+  const { t } = useI18n();
   const [rows, setRows] = useState<any[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
   const [savingKey, setSavingKey] = useState('');
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const role = normalizeRole(admin?.role);
 
-  const load = async () => {
+  const load = async (targetPage: number = page) => {
     try {
       setError('');
       setLoadingRows(true);
-      const data = await get('/commissions');
+      const data = await get(`/commissions?page=${targetPage}&limit=${PAGE_SIZE}`);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      const nextPages = Math.max(1, Number(data?.pagination?.pages || 1));
+      setPages(nextPages);
+      setTotal(Math.max(0, Number(data?.total || 0)));
+      if (targetPage > nextPages) {
+        setPage(nextPages);
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load commissions');
+      setError(loadError instanceof Error ? loadError.message : t('Failed to load commissions'));
     } finally {
       setLoadingRows(false);
     }
@@ -38,8 +51,8 @@ export default function CommissionsPage() {
       router.push('/admin/login');
       return;
     }
-    load();
-  }, [get, isLoading, router, token]);
+    load(page);
+  }, [get, isLoading, page, router, token]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, any[]>();
@@ -87,9 +100,9 @@ export default function CommissionsPage() {
         method: 'PATCH',
         body: JSON.stringify({ channel, action }),
       });
-      await load();
+      await load(page);
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : 'Failed to update transfer status');
+      setError(updateError instanceof Error ? updateError.message : t('Failed to update transfer status'));
     } finally {
       setSavingKey('');
     }
@@ -100,39 +113,39 @@ export default function CommissionsPage() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Commission Transfers</h1>
+            <h1 className="text-3xl font-bold text-foreground">{t('Commission Transfers')}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Mark commission payments and receipts. Receiving is enabled only after sender marks paid.
+              {t('Mark commission payments and receipts. Receiving is enabled only after sender marks paid.')}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <Link href="/admin/notifications">
-              <Button variant="outline" className="w-full sm:w-auto">Notifications</Button>
+              <Button variant="outline" className="w-full sm:w-auto">{t('Notifications')}</Button>
             </Link>
             <Link href="/admin/dashboard">
-              <Button variant="outline" className="w-full sm:w-auto">Back to dashboard</Button>
+              <Button variant="outline" className="w-full sm:w-auto">{t('Back to dashboard')}</Button>
             </Link>
           </div>
         </div>
 
-        {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+        {error && <p className="mb-4 text-sm text-destructive">{t(error)}</p>}
 
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <Card className="rounded-3xl border-stone-200 p-5">
-            <p className="text-sm text-stone-500">Pending commissions</p>
+            <p className="text-sm text-stone-500">{t('Pending commissions')}</p>
             <p className="mt-2 text-2xl font-bold text-stone-900">{summary.pending.toFixed(2)} EGP</p>
           </Card>
           <Card className="rounded-3xl border-stone-200 p-5">
-            <p className="text-sm text-stone-500">Received commissions</p>
+            <p className="text-sm text-stone-500">{t('Received commissions')}</p>
             <p className="mt-2 text-2xl font-bold text-stone-900">{summary.received.toFixed(2)} EGP</p>
           </Card>
         </div>
 
         <Card className="rounded-3xl border-stone-200 p-6">
           {loadingRows ? (
-            <p className="text-sm text-muted-foreground">Loading commissions...</p>
+            <p className="text-sm text-muted-foreground">{t('Loading commissions...')}</p>
           ) : grouped.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No commission records yet.</p>
+            <p className="text-sm text-muted-foreground">{t('No commission records yet.')}</p>
           ) : (
             <div className="space-y-4">
               {grouped.map((orderRows) => {
@@ -142,10 +155,10 @@ export default function CommissionsPage() {
                     <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-semibold text-stone-900">{header.orderNumber}</p>
-                        <p className="text-xs text-stone-500">Status: {header.orderStatus}</p>
+                        <p className="text-xs text-stone-500">{t('Status')}: {t(String(header.orderStatus || '').toLowerCase())}</p>
                       </div>
                       <Link href={header.href || `/admin/orders/${header.orderId}`}>
-                        <Button variant="outline" size="sm" className="w-full sm:w-auto">Open order</Button>
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">{t('Open order')}</Button>
                       </Link>
                     </div>
 
@@ -157,7 +170,7 @@ export default function CommissionsPage() {
                           <div key={row.id} className="rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
-                                <p className="font-medium text-foreground capitalize">{String(row.channel).replace('_', ' ')}</p>
+                                <p className="font-medium text-foreground capitalize">{t(String(row.channel).replace('_', ' '))}</p>
                                 <p className="text-xs text-muted-foreground">
                                   {Number(row.amount || 0).toFixed(2)} EGP
                                 </p>
@@ -170,7 +183,7 @@ export default function CommissionsPage() {
                                       ? 'bg-blue-100 text-blue-700'
                                       : 'bg-amber-100 text-amber-700'
                                 }`}>
-                                  {receiverReceived ? 'Received' : senderPaid ? 'Paid, pending receive' : 'Pending payment'}
+                                  {receiverReceived ? t('Received') : senderPaid ? t('Paid, pending receive') : t('Pending payment')}
                                 </span>
                                 {row.canMarkPaid && (
                                   <Button
@@ -180,7 +193,7 @@ export default function CommissionsPage() {
                                     disabled={savingKey === `${row.orderId}:${row.channel}:mark_paid`}
                                     onClick={() => updateTransfer(row.orderId, row.channel, 'mark_paid')}
                                   >
-                                    {savingKey === `${row.orderId}:${row.channel}:mark_paid` ? 'Saving...' : 'Mark paid'}
+                                    {savingKey === `${row.orderId}:${row.channel}:mark_paid` ? t('Saving...') : t('Mark paid')}
                                   </Button>
                                 )}
                                 {row.canMarkReceived && (
@@ -192,10 +205,10 @@ export default function CommissionsPage() {
                                       disabled={savingKey === `${row.orderId}:${row.channel}:mark_received`}
                                       onClick={() => updateTransfer(row.orderId, row.channel, 'mark_received')}
                                     >
-                                      {savingKey === `${row.orderId}:${row.channel}:mark_received` ? 'Saving...' : 'Mark received'}
+                                      {savingKey === `${row.orderId}:${row.channel}:mark_received` ? t('Saving...') : t('Mark received')}
                                     </Button>
                                     <Link href={`/admin/commission-complaints/new?orderId=${row.orderId}&channel=${row.channel}`}>
-                                      <Button size="sm" variant="outline" className="w-full sm:w-auto">Didn&apos;t receive</Button>
+                                      <Button size="sm" variant="outline" className="w-full sm:w-auto">{t("Didn't receive")}</Button>
                                     </Link>
                                   </>
                                 )}
@@ -210,6 +223,31 @@ export default function CommissionsPage() {
               })}
             </div>
           )}
+          <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {t('Page')} {Math.min(page, pages)} {t('of')} {pages} · {total} {t('Orders')}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || loadingRows}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              >
+                {t('Previous')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page >= pages || loadingRows}
+                onClick={() => setPage((prev) => Math.min(pages, prev + 1))}
+              >
+                {t('Next')}
+              </Button>
+            </div>
+          </div>
         </Card>
       </main>
     </div>

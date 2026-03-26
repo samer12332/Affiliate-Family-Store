@@ -147,7 +147,7 @@ async function getCommissionSettlementSummary(orderQuery: Record<string, any>) {
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -330,3 +330,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

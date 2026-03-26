@@ -57,7 +57,7 @@ export default function AdminLogin() {
           <p className="text-xs uppercase tracking-[0.3em] text-stone-500">{t('Affiliate Family Store')}</p>
           <h1 className="mt-3 text-3xl font-bold text-stone-900">{t('Role-Based Control Center')}</h1>
           <p className="mt-2 text-sm text-stone-600">
-            {t('Sign in as owner, admin, main merchant, submerchant, or marketer.')}
+            {t('Sign in with your assigned account role.')}
           </p>
         </div>
 
@@ -90,9 +90,6 @@ export default function AdminLogin() {
           </Link>
         </div>
 
-        <p className="mt-6 text-center text-xs text-stone-500">
-          {t('Protected owner account: sameryousry99@gmail.com')}
-        </p>
       </div>
     </div>
   );

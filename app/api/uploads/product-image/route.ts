@@ -8,7 +8,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'submerchant', 'merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'submerchant', 'merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -53,3 +53,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

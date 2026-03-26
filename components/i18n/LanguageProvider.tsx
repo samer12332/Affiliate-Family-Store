@@ -31,6 +31,105 @@ function writeLocaleCookie(locale: Locale) {
   document.cookie = `${LOCALE_COOKIE_KEY}=${locale}; Path=/; SameSite=Lax; Max-Age=31536000`;
 }
 
+function translateNodeText(value: string, locale: Locale): string {
+  if (locale !== "ar") {
+    return value;
+  }
+  const leading = value.match(/^\s*/)?.[0] || "";
+  const trailing = value.match(/\s*$/)?.[0] || "";
+  const core = value.slice(leading.length, Math.max(value.length - trailing.length, leading.length));
+  if (!core) {
+    return value;
+  }
+  const translated = translateText(core, locale);
+  return `${leading}${translated}${trailing}`;
+}
+
+function applyRuntimeTranslations(locale: Locale) {
+  if (typeof document === "undefined") {
+    return () => {};
+  }
+
+  const translateElementAttributes = (element: Element) => {
+    const htmlElement = element as HTMLElement;
+    const attrs = ["placeholder", "title", "aria-label"];
+    for (const attr of attrs) {
+      const current = htmlElement.getAttribute(attr);
+      if (!current) continue;
+      const translated = translateText(current, locale);
+      if (translated !== current) {
+        htmlElement.setAttribute(attr, translated);
+      }
+    }
+  };
+
+  const translateTextNodes = (root: Node) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current) {
+      const parentTag = (current.parentElement?.tagName || "").toLowerCase();
+      if (parentTag !== "script" && parentTag !== "style") {
+        const original = current.nodeValue || "";
+        const translated = translateNodeText(original, locale);
+        if (translated !== original) {
+          current.nodeValue = translated;
+        }
+      }
+      current = walker.nextNode();
+    }
+  };
+
+  const translateTree = (root: Node) => {
+    translateTextNodes(root);
+    if (root instanceof Element) {
+      translateElementAttributes(root);
+      root.querySelectorAll("*").forEach((element) => {
+        translateElementAttributes(element);
+      });
+    }
+  };
+
+  translateTree(document.body);
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === "characterData") {
+        const target = mutation.target;
+        const original = target.nodeValue || "";
+        const translated = translateNodeText(original, locale);
+        if (translated !== original) {
+          target.nodeValue = translated;
+        }
+        continue;
+      }
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const original = node.nodeValue || "";
+          const translated = translateNodeText(original, locale);
+          if (translated !== original) {
+            node.nodeValue = translated;
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          translateTree(node);
+        }
+      });
+      if (mutation.type === "attributes" && mutation.target instanceof Element) {
+        translateElementAttributes(mutation.target);
+      }
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ["placeholder", "title", "aria-label"],
+  });
+
+  return () => observer.disconnect();
+}
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
 
@@ -53,6 +152,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     applyDocumentLocale(nextLocale);
     writeLocaleCookie(nextLocale);
   }, []);
+
+  useEffect(() => {
+    return applyRuntimeTranslations(locale);
+  }, [locale]);
 
   const value = useMemo<LanguageContextValue>(
     () => ({

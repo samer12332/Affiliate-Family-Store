@@ -67,7 +67,7 @@ export function ContactForm() {
           type="text"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="John Doe"
+          placeholder="Samer Yousry"
           className="w-full px-4 py-2 border border-border rounded-lg text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary"
           required
         />
@@ -81,7 +81,7 @@ export function ContactForm() {
           type="email"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          placeholder="john@example.com"
+          placeholder="sameryousry44@gmail.com"
           className="w-full px-4 py-2 border border-border rounded-lg text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary"
           required
         />
@@ -95,7 +95,7 @@ export function ContactForm() {
           type="tel"
           value={formData.phone}
           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-          placeholder="+20 1234 567 890"
+          placeholder="+201017306593"
           className="w-full px-4 py-2 border border-border rounded-lg text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary"
           required
         />

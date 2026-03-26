@@ -4,8 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ShoppingCart } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
+import { useI18n } from '@/components/i18n/LanguageProvider';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +41,8 @@ export default function MarketerMarketplaceClient({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { addItem, getTotalItems } = useCart();
+  const { addItem } = useCart();
+  const { t } = useI18n();
   const [products, setProducts] = useState<MarketplaceProduct[]>(initialProducts);
   const [merchantFilter, setMerchantFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -164,8 +165,6 @@ export default function MarketerMarketplaceClient({
     [dedupedMerchants]
   );
 
-  const totalCartItems = getTotalItems();
-
   const showToast = async (type: 'success' | 'error', message: string) => {
     const { toast } = await import('sonner');
     if (type === 'success') {
@@ -181,31 +180,11 @@ export default function MarketerMarketplaceClient({
         <div className="mb-8 rounded-3xl border border-stone-200 bg-white/90 p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Marketer marketplace</p>
-              <h1 className="mt-2 text-3xl font-bold text-stone-900">Browse all submerchant products</h1>
+              <p className="text-xs uppercase tracking-[0.2em] text-stone-500">{t('Marketer marketplace')}</p>
+              <h1 className="mt-2 text-3xl font-bold text-stone-900">{t('Browse all submerchant products')}</h1>
               <p className="mt-2 max-w-3xl text-sm text-stone-600">
-                Filter by merchant, build your cart, and confirm orders. Checkout will split the cart into separate merchant orders automatically.
+                {t('Filter by merchant and build your cart. You can checkout only when all cart products have the same submerchant and shipping type.')}
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              <Link href="/marketer/dashboard">
-                <Button size="sm" variant="outline">My dashboard</Button>
-              </Link>
-              <Link href="/admin/orders">
-                <Button size="sm" variant="outline">My orders</Button>
-              </Link>
-              <Link href="/admin/commissions">
-                <Button size="sm" variant="outline">Commissions</Button>
-              </Link>
-              <Link href="/admin/notifications">
-                <Button size="sm" variant="outline">Notifications</Button>
-              </Link>
-              <Link href="/cart">
-                <Button size="sm" className="gap-2">
-                  <ShoppingCart className="h-4 w-4" />
-                  Cart ({totalCartItems})
-                </Button>
-              </Link>
             </div>
           </div>
         </div>
@@ -214,7 +193,7 @@ export default function MarketerMarketplaceClient({
           <div className="grid gap-3 md:grid-cols-[1fr_220px_220px]">
             <Input
               ref={searchInputRef}
-              placeholder="Search by product name or SKU"
+              placeholder={t('Search by product name or SKU')}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -223,16 +202,16 @@ export default function MarketerMarketplaceClient({
               onChange={(event) => setCategoryFilter(event.target.value)}
               className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="all">All categories</option>
-              <option value="clothes">Clothes</option>
-              <option value="shoes">Shoes</option>
+              <option value="all">{t('All categories')}</option>
+              <option value="clothes">{t('Clothes')}</option>
+              <option value="shoes">{t('Shoes')}</option>
             </select>
             <select
               value={merchantFilter}
               onChange={(event) => setMerchantFilter(event.target.value)}
               className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="all">All submerchants</option>
+              <option value="all">{t('All submerchants')}</option>
               {dedupedMerchants.map((merchant) => (
                 <option key={merchant._id} value={merchant._id}>
                   {merchant.name}
@@ -264,27 +243,25 @@ export default function MarketerMarketplaceClient({
                   <div>
                     <p className="truncate text-[10px] uppercase tracking-[0.14em] text-stone-500 sm:text-[11px] sm:tracking-[0.18em]">{merchantName}</p>
                     <h2 className="mt-1 line-clamp-1 text-sm font-semibold text-stone-900 sm:text-lg">{product.name}</h2>
-                    <p className="mt-1 line-clamp-2 text-[11px] text-stone-600 sm:text-sm">
-                      {product.description || 'No description added yet for this product.'}
-                    </p>
+                    <p className="mt-1 line-clamp-2 text-[11px] text-stone-600 sm:text-sm">{product.description || t('No description added yet for this product.')}</p>
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-stone-50 px-2 py-1.5 sm:rounded-2xl sm:px-3 sm:py-2">
                     <div>
-                      <p className="text-[10px] text-stone-500">Merchant price</p>
+                      <p className="text-[10px] text-stone-500">{t('Merchant price')}</p>
                       <p className="text-xs font-semibold text-stone-900 sm:text-sm">{merchantPrice.toFixed(2)} EGP</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-stone-500">Suggested commission</p>
+                      <p className="text-[10px] text-stone-500">{t('Suggested commission')}</p>
                       <p className="text-xs font-semibold text-stone-900 sm:text-sm">
                         {product.suggestedCommission !== null && product.suggestedCommission !== undefined
                           ? `${Number(product.suggestedCommission).toFixed(2)} EGP`
-                          : 'Not set'}
+                          : t('Not set')}
                       </p>
                     </div>
                   </div>
                   <div className="flex gap-1.5 sm:gap-2">
                     <Link className="flex-1" href={`/merchant/${product.merchantId}`}>
-                      <Button size="sm" variant="outline" className="w-full px-2 text-xs sm:text-sm">Merchant</Button>
+                      <Button size="sm" variant="outline" className="w-full px-2 text-xs sm:text-sm">{t('Merchant')}</Button>
                     </Link>
                     <Button
                       size="sm"
@@ -313,10 +290,10 @@ export default function MarketerMarketplaceClient({
                           return;
                         }
 
-                        void showToast('success', 'Product added to cart');
+                        void showToast('success', t('Product added to cart'));
                       }}
                     >
-                      Add to cart
+                      {t('Add to cart')}
                     </Button>
                   </div>
                 </div>
@@ -328,7 +305,7 @@ export default function MarketerMarketplaceClient({
         {hasMore && (
           <div className="mt-8 flex justify-center">
             <Button variant="outline" disabled={isLoadingProducts} onClick={() => setPage((prev) => prev + 1)}>
-              {isLoadingProducts ? 'Loading...' : 'Load more'}
+              {isLoadingProducts ? t('Loading...') : t('Load more')}
             </Button>
           </div>
         )}

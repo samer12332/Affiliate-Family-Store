@@ -25,7 +25,7 @@ export default function ContactPage() {
               <LocalizedText text="Contact Us" />
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              <LocalizedText text="We would love to hear from you. Send us a message and we'll respond as soon as possible." />
+              <LocalizedText text="New merchants can contact us here if they want to join FamilyStore. Send us your details and we will respond as soon as possible." />
             </p>
           </div>
         </div>
@@ -47,7 +47,7 @@ export default function ContactPage() {
                     <Phone className="w-6 h-6 text-primary mt-1" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground mb-1"><LocalizedText text="Phone" /></h3>
+                    <h3 className="font-semibold text-foreground mb-1"><LocalizedText text="WhatsApp number" /></h3>
                     <a
                       href="https://wa.me/201017306593?text=Hello%20I%20want%20to%20ask%20about%20FamilyStore"
                       target="_blank"

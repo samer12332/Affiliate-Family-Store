@@ -13,7 +13,7 @@ export async function PATCH(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -64,7 +64,7 @@ export async function PATCH(
     if (body.active !== undefined) update.active = Boolean(body.active);
     if (body.role !== undefined) {
       const normalizedNextRole = normalizeRole(String(body.role));
-      if (!['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'marketer'].includes(normalizedNextRole)) {
+      if (!['owner', 'admin', 'main_merchant', 'submerchant', 'marketer'].includes(normalizedNextRole)) {
         return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
       }
       if (
@@ -138,7 +138,7 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
     }

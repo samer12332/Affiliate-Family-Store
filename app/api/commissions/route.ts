@@ -1,17 +1,22 @@
-import { requireRole } from '@/lib/auth';
+﻿import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Commission, Order, User } from '@/lib/models';
 import { isAdminRole, isMainMerchantRole, isMarketerRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
+import { parsePositiveInt } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
     if (!auth.ok) return auth.response;
 
     const actorRole = normalizeRole(auth.user.role);
     const actorId = auth.user._id.toString();
+    const searchParams = request.nextUrl.searchParams;
+    const limit = parsePositiveInt(searchParams.get('limit'), 20, 100);
+    const page = parsePositiveInt(searchParams.get('page'), 1, 5000);
+    const skip = (page - 1) * limit;
 
     let orderQuery: any = {};
     if (isSubmerchantRole(actorRole)) {
@@ -27,9 +32,11 @@ export async function GET(request: NextRequest) {
       orderQuery.marketerId = auth.user._id;
     }
 
+    const totalOrders = await Order.countDocuments(orderQuery);
     const orders = await Order.find(orderQuery)
       .sort({ createdAt: -1 })
-      .limit(120)
+      .limit(limit)
+      .skip(skip)
       .select('_id orderNumber merchantId marketerId status createdAt');
     const orderIds = orders.map((entry: any) => entry._id);
     const commissions = await Commission.find().where('orderId').in(orderIds);
@@ -101,7 +108,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ rows });
+    return NextResponse.json({
+      rows,
+      total: totalOrders,
+      pagination: {
+        page,
+        limit,
+        pages: Math.max(1, Math.ceil(totalOrders / limit)),
+      },
+    });
   } catch (error: any) {
     console.error('[v0] Commissions API error:', error);
     return NextResponse.json(

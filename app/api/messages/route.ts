@@ -1,5 +1,6 @@
 import { requireRole } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
+import { createNotificationsForUsers, getAdminUserIds } from '@/lib/notifications';
 import { checkRateLimit, getRequestIp } from '@/lib/rate-limit';
 import { isValidObjectId, parsePositiveInt, safeTrim, validateEmail, validatePhone } from '@/lib/validation';
 import { Message } from '@/lib/models';
@@ -58,6 +59,24 @@ export async function POST(request: NextRequest) {
 
     await msg.save();
 
+    const adminUserIds = await getAdminUserIds();
+    if (adminUserIds.length > 0) {
+      const preview = normalizedMessage.length > 140
+        ? `${normalizedMessage.slice(0, 137)}...`
+        : normalizedMessage;
+      await createNotificationsForUsers({
+        userIds: adminUserIds,
+        type: 'message',
+        title: type === 'contact' ? 'New merchant contact request' : 'New product inquiry message',
+        body: `${normalizedName} (${normalizedEmail})${normalizedPhone ? ` - ${normalizedPhone}` : ''}: ${preview}`,
+        href: '/admin/messages',
+        metadata: {
+          messageId: msg._id?.toString?.() || String(msg._id),
+          messageType: type,
+        },
+      });
+    }
+
     return NextResponse.json(
       { success: true, message: 'Message sent successfully' },
       { status: 201 }
@@ -74,7 +93,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin']);
+    const auth = await requireRole(request, ['owner', 'admin']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -114,3 +133,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

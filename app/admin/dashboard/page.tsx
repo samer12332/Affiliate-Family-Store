@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
-import { MerchantNav } from '@/components/admin/merchant-nav';
 import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -77,30 +76,6 @@ export default function DashboardPage() {
 
   if (isLoading || !token || !admin) return null;
   const role = normalizeRole(admin.role);
-
-  const nav =
-    role === 'marketer'
-      ? [
-          { href: '/admin/orders', label: 'My orders' },
-          { href: '/merchant-directory', label: t('Submerchants') },
-        ]
-      : isAdminRole(role)
-        ? [
-            { href: '/admin/users', label: t('Users') },
-            { href: '/admin/orders', label: t('Orders') },
-            { href: '/admin/products', label: t('Products') },
-            { href: '/admin/stocks', label: 'Stock' },
-            { href: '/admin/shipping-systems', label: 'Shipping' },
-            { href: '/admin/commissions', label: t('Commissions') },
-            { href: '/admin/commission-complaints', label: 'Complaints' },
-          ]
-        : isMainMerchantRole(role)
-          ? [
-              { href: '/admin/users', label: t('Users') },
-              { href: '/admin/orders', label: t('Orders') },
-              { href: '/admin/commissions', label: t('Commissions') },
-            ]
-          : [];
 
   const cards =
     role === 'marketer'
@@ -179,20 +154,6 @@ export default function DashboardPage() {
             </Button>
           </div>
         </div>
-
-        {isSubmerchantRole(role) ? (
-          <MerchantNav />
-        ) : (
-          <div className="mb-8 flex flex-wrap gap-3">
-            {nav.map((item) => {
-              return (
-                <Link key={item.href} href={item.href}>
-                  <Button variant="outline">{item.label}</Button>
-                </Link>
-              );
-            })}
-          </div>
-        )}
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => (

@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
     await ensureShippingSystemIndexes();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant', 'submerchant', 'merchant']);
     if (!auth.ok) {
       return auth.response;
     }

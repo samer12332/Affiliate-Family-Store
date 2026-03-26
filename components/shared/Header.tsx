@@ -18,11 +18,16 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
-  const isMarketerLoggedIn = !isLoading && !!token && admin?.role === "marketer";
+  const normalizedRole = admin?.role === "merchant" ? "submerchant" : String(admin?.role || "");
+  const isAuthenticated = !isLoading && !!token;
+  const isMarketerLoggedIn = isAuthenticated && normalizedRole === "marketer";
+  const isSubmerchantLoggedIn = isAuthenticated && normalizedRole === "submerchant";
+  const isMainMerchantLoggedIn = isAuthenticated && normalizedRole === "main_merchant";
+  const isAdminLoggedIn = isAuthenticated && (normalizedRole === "owner" || normalizedRole === "admin");
   const unreadNotifications = useUnreadNotifications();
   const totalCartItems = getTotalItems();
 
-  const navLinks = [
+  const publicNavLinks = [
     { href: "/shop", label: t("Shop") },
     { href: "/categories/clothes", label: t("Clothes") },
     { href: "/categories/shoes", label: t("Shoes") },
@@ -30,14 +35,70 @@ export function Header() {
     { href: "/contact", label: t("Contact") },
   ];
 
-  const marketerQuickLinks = [
+  const marketerPrimaryLinks = [
     { href: "/marketer/dashboard", label: t("Dashboard") },
     { href: "/shop", label: t("Marketplace") },
+    { href: "/categories/clothes", label: t("Clothes") },
+    { href: "/categories/shoes", label: t("Shoes") },
     { href: "/cart", label: t("Cart") },
     { href: "/admin/orders", label: t("Orders") },
+    { href: "/admin/commissions", label: t("Commissions") },
   ];
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+  const marketerSecondaryLinks = [
+    { href: "/about", label: t("About") },
+    { href: "/contact", label: t("Contact") },
+  ];
+  const submerchantPrimaryLinks = [
+    { href: "/admin/dashboard", label: t("Dashboard") },
+    { href: "/admin/products", label: t("Products") },
+    { href: "/admin/stocks", label: "Stock" },
+    { href: "/admin/orders", label: t("Orders") },
+    { href: "/admin/commissions", label: t("Commissions") },
+    { href: "/admin/shipping-systems", label: "Shipping" },
+  ];
+  const mainMerchantPrimaryLinks = [
+    { href: "/admin/dashboard", label: t("Dashboard") },
+    { href: "/admin/users", label: t("Users") },
+    { href: "/admin/orders", label: t("Orders") },
+    { href: "/admin/commissions", label: t("Commissions") },
+  ];
+  const adminPrimaryLinks = [
+    { href: "/admin/dashboard", label: t("Dashboard") },
+    { href: "/admin/users", label: t("Users") },
+    { href: "/admin/orders", label: t("Orders") },
+    { href: "/admin/products", label: t("Products") },
+    { href: "/admin/stocks", label: "Stock" },
+    { href: "/admin/shipping-systems", label: "Shipping" },
+    { href: "/admin/commissions", label: t("Commissions") },
+    { href: "/admin/commission-complaints", label: "Complaints" },
+  ];
+  const roleSecondaryLinks = [
+    { href: "/about", label: t("About") },
+    { href: "/contact", label: t("Contact") },
+  ];
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === "/cart") return pathname === "/cart";
+    if (href === "/shop") {
+      return (
+        pathname === "/shop" ||
+        pathname.startsWith("/shop/") ||
+        pathname === "/merchant-directory" ||
+        pathname.startsWith("/merchant-directory/")
+      );
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const desktopNavLinks = isMarketerLoggedIn
+    ? marketerPrimaryLinks
+    : isSubmerchantLoggedIn
+      ? submerchantPrimaryLinks
+      : isMainMerchantLoggedIn
+        ? mainMerchantPrimaryLinks
+        : isAdminLoggedIn
+          ? adminPrimaryLinks
+          : publicNavLinks;
 
   return (
     <header className="sticky top-0 z-50 w-full bg-background border-b border-border">
@@ -47,8 +108,8 @@ export function Header() {
           <SiteLogo />
 
           {/* Navigation - Desktop */}
-          <nav className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
+          <nav className="hidden md:flex items-center gap-5 overflow-x-auto whitespace-nowrap">
+            {desktopNavLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -67,7 +128,7 @@ export function Header() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
-            {isMarketerLoggedIn && (
+            {isAuthenticated && (
               <button
                 type="button"
                 onClick={() => {
@@ -87,7 +148,7 @@ export function Header() {
             >
               <Search className="w-5 h-5 text-foreground" />
             </button>
-            {isMarketerLoggedIn && (
+            {isAuthenticated && (
               <Link href="/admin/notifications" className="relative p-2" aria-label={t("Notifications")}>
                 <Bell className="w-5 h-5 text-foreground" />
                 {unreadNotifications > 0 && (
@@ -97,14 +158,16 @@ export function Header() {
                 )}
               </Link>
             )}
-            <Link href="/cart" className="relative p-2">
-              <ShoppingCart className="w-5 h-5 text-foreground" />
-              {totalCartItems > 0 && (
-                <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {totalCartItems}
-                </span>
-              )}
-            </Link>
+            {isMarketerLoggedIn && (
+              <Link href="/cart" className="relative p-2">
+                <ShoppingCart className="w-5 h-5 text-foreground" />
+                {totalCartItems > 0 && (
+                  <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {totalCartItems}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -121,48 +184,114 @@ export function Header() {
             </button>
           </div>
         </div>
-
-        {isMarketerLoggedIn && (
-          <nav className="md:hidden border-t border-border py-2">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {marketerQuickLinks.map((link) => (
+        {/* Mobile Navigation */}
+        {mobileMenuOpen && (
+          <nav className="md:hidden border-t border-border py-4 space-y-3">
+            {isMarketerLoggedIn ? (
+              <>
+                <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("Dashboard")}
+                </p>
+                {marketerPrimaryLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    aria-current={isActive(link.href) ? "page" : undefined}
+                    className={cn(
+                      "block py-2 transition-colors",
+                      isActive(link.href)
+                        ? "text-primary font-semibold"
+                        : "text-foreground hover:text-primary"
+                    )}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <p className="mt-3 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("Support")}
+                </p>
+                {marketerSecondaryLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    aria-current={isActive(link.href) ? "page" : undefined}
+                    className={cn(
+                      "block py-2 transition-colors",
+                      isActive(link.href)
+                        ? "text-primary font-semibold"
+                        : "text-foreground hover:text-primary"
+                    )}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </>
+            ) : isSubmerchantLoggedIn || isMainMerchantLoggedIn || isAdminLoggedIn ? (
+              <>
+                <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("Dashboard")}
+                </p>
+                {(isSubmerchantLoggedIn
+                  ? submerchantPrimaryLinks
+                  : isMainMerchantLoggedIn
+                    ? mainMerchantPrimaryLinks
+                    : adminPrimaryLinks).map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    aria-current={isActive(link.href) ? "page" : undefined}
+                    className={cn(
+                      "block py-2 transition-colors",
+                      isActive(link.href)
+                        ? "text-primary font-semibold"
+                        : "text-foreground hover:text-primary"
+                    )}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <p className="mt-3 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("Support")}
+                </p>
+                {roleSecondaryLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    aria-current={isActive(link.href) ? "page" : undefined}
+                    className={cn(
+                      "block py-2 transition-colors",
+                      isActive(link.href)
+                        ? "text-primary font-semibold"
+                        : "text-foreground hover:text-primary"
+                    )}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </>
+            ) : (
+              publicNavLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   aria-current={isActive(link.href) ? "page" : undefined}
                   className={cn(
-                    "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                    "block py-2 transition-colors",
                     isActive(link.href)
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border text-foreground hover:bg-muted"
+                      ? "text-primary font-semibold"
+                      : "text-foreground hover:text-primary"
                   )}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   {link.label}
                 </Link>
-              ))}
-            </div>
-          </nav>
-        )}
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <nav className="md:hidden border-t border-border py-4 space-y-3">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={isActive(link.href) ? "page" : undefined}
-                className={cn(
-                  "block transition-colors py-2",
-                  isActive(link.href)
-                    ? "text-primary font-semibold"
-                    : "text-foreground hover:text-primary"
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-            {isMarketerLoggedIn && (
+              ))
+            )}
+            {isAuthenticated && (
               <button
                 type="button"
                 onClick={() => {

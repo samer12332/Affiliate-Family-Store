@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     await connectDB();
     await ensureOwner();
 
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     const allowedRoles = isMainMerchantRole(actorRole)
       ? ['submerchant', 'marketer']
       : actorRole === 'owner'
-        ? ['admin', 'super_admin', 'main_merchant', 'submerchant', 'marketer']
+        ? ['admin', 'main_merchant', 'submerchant', 'marketer']
         : ['main_merchant', 'submerchant', 'marketer'];
 
     if (!name || !email || !password || !allowedRoles.includes(role)) {

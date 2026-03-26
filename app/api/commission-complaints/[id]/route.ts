@@ -10,7 +10,7 @@ export async function PATCH(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin']);
+    const auth = await requireRole(request, ['owner', 'admin']);
     if (!auth.ok) return auth.response;
 
     const { id } = await params;

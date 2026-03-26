@@ -1,10 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApi } from '@/hooks/useApi';
 import { useCart } from '@/hooks/useCart';
+import { useI18n } from '@/components/i18n/LanguageProvider';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { EGYPTIAN_GOVERNORATES } from '@/lib/constants';
 
 export default function CheckoutPageClient() {
   const router = useRouter();
+  const { t } = useI18n();
   const { cart, clearCart } = useCart();
   const { post } = useApi();
   const [customer, setCustomer] = useState({ name: '', phone: '', email: '', addressLine: '', notes: '' });
@@ -65,7 +66,7 @@ export default function CheckoutPageClient() {
       })
       .catch((estimateError) => {
         if (!cancelled) {
-          setError(estimateError instanceof Error ? estimateError.message : 'Failed to estimate shipping');
+          setError(estimateError instanceof Error ? estimateError.message : t('Failed to estimate shipping'));
         }
       });
 
@@ -90,15 +91,15 @@ export default function CheckoutPageClient() {
       setSaving(true);
 
       if (!customer.name || !customer.phone || !customer.addressLine) {
-        setError('Customer name, phone, and address are required.');
+        setError(t('Customer name, phone, and address are required.'));
         return;
       }
       if (!validatePhone(customer.phone)) {
-        setError('Please provide a valid customer phone number.');
+        setError(t('Please provide a valid customer phone number.'));
         return;
       }
       if (customer.email && !validateEmail(customer.email)) {
-        setError('Please provide a valid customer email address.');
+        setError(t('Please provide a valid customer email address.'));
         return;
       }
       if (
@@ -109,8 +110,8 @@ export default function CheckoutPageClient() {
             Number(item.quantity) < 1 ||
             !Number.isFinite(Number(item.salePriceByMarketer))
         )
-      ) {
-        setError('Cart contains invalid product entries. Please refresh and try again.');
+        ) {
+        setError(t('Cart contains invalid product entries. Please refresh and try again.'));
         return;
       }
       const invalidPricingItems = cart.filter(
@@ -122,8 +123,8 @@ export default function CheckoutPageClient() {
           .map((item) => item.productName)
           .join(', ');
         setError(
-          `Cannot proceed: marketer price is below merchant price for ${names}${
-            invalidPricingItems.length > 3 ? ' and more items' : ''
+          `${t('Cannot proceed: marketer price is below merchant price for')} ${names}${
+            invalidPricingItems.length > 3 ? ` ${t('and more items')}` : ''
           }.`
         );
         return;
@@ -149,7 +150,7 @@ export default function CheckoutPageClient() {
       clearCart();
       router.push('/admin/orders');
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Failed to create merchant orders');
+      setError(submitError instanceof Error ? submitError.message : t('Failed to create order'));
     } finally {
       setSaving(false);
     }
@@ -159,22 +160,19 @@ export default function CheckoutPageClient() {
     <>
       <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-stone-200 bg-white/90 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Checkout</p>
-          <h1 className="mt-2 text-3xl font-bold text-stone-900">Confirm marketer orders</h1>
-          <p className="mt-2 text-sm text-stone-600">Submitting checkout will create one order per merchant from the grouped cart.</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-stone-500">{t('Checkout')}</p>
+          <h1 className="mt-2 text-3xl font-bold text-stone-900">{t('Confirm marketer orders')}</h1>
+          <p className="mt-2 text-sm text-stone-600">{t('Submitting checkout creates one order for the selected submerchant.')}</p>
         </div>
-        <Link href="/cart">
-          <Button variant="outline">Back to cart</Button>
-        </Link>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="rounded-3xl border-stone-200 p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Customer details</h2>
+          <h2 className="text-lg font-semibold text-stone-900">{t('Customer details')}</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Input required maxLength={120} placeholder="Customer name" value={customer.name} onChange={(event) => setCustomer((prev) => ({ ...prev, name: event.target.value }))} />
-            <Input required maxLength={20} placeholder="Customer phone" value={customer.phone} onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))} />
-            <Input type="email" maxLength={254} placeholder="Customer email" value={customer.email} onChange={(event) => setCustomer((prev) => ({ ...prev, email: event.target.value }))} />
+            <Input required maxLength={120} placeholder={t('Customer name')} value={customer.name} onChange={(event) => setCustomer((prev) => ({ ...prev, name: event.target.value }))} />
+            <Input required maxLength={20} placeholder={t('Customer phone')} value={customer.phone} onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))} />
+            <Input type="email" maxLength={254} placeholder={t('Customer email')} value={customer.email} onChange={(event) => setCustomer((prev) => ({ ...prev, email: event.target.value }))} />
             <select
               value={governorate}
               onChange={(event) => setGovernorate(event.target.value)}
@@ -185,7 +183,7 @@ export default function CheckoutPageClient() {
               ))}
             </select>
             <div className="md:col-span-2">
-              <Input required maxLength={255} placeholder="Address line" value={customer.addressLine} onChange={(event) => setCustomer((prev) => ({ ...prev, addressLine: event.target.value }))} />
+              <Input required maxLength={255} placeholder={t('Address line')} value={customer.addressLine} onChange={(event) => setCustomer((prev) => ({ ...prev, addressLine: event.target.value }))} />
             </div>
             <div className="md:col-span-2">
               <textarea
@@ -193,7 +191,7 @@ export default function CheckoutPageClient() {
                 onChange={(event) => setCustomer((prev) => ({ ...prev, notes: event.target.value }))}
                 className="min-h-24 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
                 maxLength={1000}
-                placeholder="Customer notes"
+                placeholder={t('Customer notes')}
               />
             </div>
           </div>
@@ -203,11 +201,11 @@ export default function CheckoutPageClient() {
               <div key={merchantId} className="rounded-2xl border border-stone-200 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Merchant</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-stone-500">{t('Merchant')}</p>
                     <h3 className="mt-1 text-lg font-semibold text-stone-900">{items[0]?.merchantName || merchantId}</h3>
                   </div>
                   <div className="text-right text-sm">
-                    <p className="text-stone-500">Shipping</p>
+                    <p className="text-stone-500">{t('Shipping')}</p>
                     <p className="font-semibold text-stone-900">{Number(shippingByMerchant[merchantId] || 0).toFixed(2)} EGP</p>
                   </div>
                 </div>
@@ -225,28 +223,28 @@ export default function CheckoutPageClient() {
         </Card>
 
         <Card className="self-start rounded-3xl border-stone-200 p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Order summary</h2>
+          <h2 className="text-lg font-semibold text-stone-900">{t('Order summary')}</h2>
           <div className="mt-4 space-y-3 text-sm">
             <div className="flex items-center justify-between">
-              <span>Merchant groups</span>
+              <span>{t('Merchant group')}</span>
               <span>{merchantGroups.length}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Subtotal</span>
+              <span>{t('Subtotal')}</span>
               <span>{subtotal.toFixed(2)} EGP</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Shipping</span>
+              <span>{t('Shipping')}</span>
               <span>{shippingTotal.toFixed(2)} EGP</span>
             </div>
             <div className="flex items-center justify-between border-t border-stone-200 pt-3 text-base font-semibold text-stone-900">
-              <span>Total</span>
+              <span>{t('Total')}</span>
               <span>{total.toFixed(2)} EGP</span>
             </div>
           </div>
           {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
           <Button className="mt-6 w-full" disabled={saving || merchantGroups.length === 0} onClick={submit}>
-            {saving ? 'Submitting merchant orders...' : 'Confirm checkout'}
+            {saving ? t('Submitting order...') : t('Confirm checkout')}
           </Button>
         </Card>
       </div>

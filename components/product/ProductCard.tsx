@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart } from "lucide-react";
 import { FavoriteToggleButton } from "@/components/product/FavoriteToggleButton";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 
 interface ProductCardProps {
   slug: string;
@@ -105,7 +106,7 @@ export function ProductCard({
         >
           <Link href={`/products/${slug}`} className="flex items-center justify-center gap-2">
             <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="text-xs sm:text-sm">View Details</span>
+            <span className="text-xs sm:text-sm"><LocalizedText text="View Details" /></span>
           </Link>
         </Button>
       </div>

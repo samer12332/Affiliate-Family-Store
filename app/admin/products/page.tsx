@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
-import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { isAdminRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
@@ -58,8 +57,6 @@ export default function ProductsPage() {
             </Link>
           </div>
         </div>
-
-        {isSubmerchantRole(role) && <MerchantNav />}
 
         <div className="grid gap-4">
           {products.map((product) => (

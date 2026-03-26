@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Header } from "@/components/shared/Header";
 import { Footer } from "@/components/shared/Footer";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 
 const LiveNotificationToast = dynamic(
   () => import("@/components/admin/live-notification-toast").then((mod) => mod.LiveNotificationToast),
@@ -15,10 +16,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
   const isAdminLogin = pathname === "/admin/login";
+  const { token, isLoading } = useAdminAuth();
+  const shouldShowHeaderOnAdminRoute = isAdminRoute && !isAdminLogin && !isLoading && !!token;
 
   if (isAdminRoute) {
     return (
       <>
+        {shouldShowHeaderOnAdminRoute && <Header />}
         {!isAdminLogin && (
           <div
             className="fixed bottom-4 z-[70]"

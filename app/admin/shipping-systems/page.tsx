@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useApi } from '@/hooks/useApi';
-import { MerchantNav } from '@/components/admin/merchant-nav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { isAdminRole, isMainMerchantRole, isSubmerchantRole, normalizeRole } from '@/lib/roles';
@@ -60,8 +59,6 @@ export default function ShippingSystemsPage() {
             </Link>
           </div>
         </div>
-
-        {isSubmerchantRole(role) && <MerchantNav />}
 
         <div className="grid gap-4 md:grid-cols-2">
           {systems.map((system) => (

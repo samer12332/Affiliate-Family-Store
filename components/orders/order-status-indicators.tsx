@@ -1,3 +1,6 @@
+﻿'use client';
+
+import { useI18n } from '@/components/i18n/LanguageProvider';
 import { cn } from '@/lib/utils';
 
 type AppRole = string;
@@ -26,17 +29,23 @@ function getLastChangedAt(order: any): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function formatRelativeShort(date: Date): string {
+function formatRelativeShort(date: Date, localeCode: 'en' | 'ar'): string {
+  const locale = localeCode === 'ar' ? 'ar-EG' : 'en-US';
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' });
   const diffMs = Date.now() - date.getTime();
-  if (diffMs < 0) return 'just now';
+  if (diffMs < 0) return rtf.format(0, 'minute');
+
   const mins = Math.floor(diffMs / (1000 * 60));
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return rtf.format(0, 'minute');
+  if (mins < 60) return rtf.format(-mins, 'minute');
+
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return rtf.format(-hours, 'hour');
+
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
+  if (days < 7) return rtf.format(-days, 'day');
+
+  return date.toLocaleDateString(locale);
 }
 
 function getAttentionLabel(order: any, role?: AppRole): string | null {
@@ -55,7 +64,7 @@ function getAttentionLabel(order: any, role?: AppRole): string | null {
     return 'Order Closed';
   }
 
-  if ((normalizedRole === 'admin' || normalizedRole === 'owner' || normalizedRole === 'super_admin') && status === 'pending') {
+  if ((normalizedRole === 'admin' || normalizedRole === 'owner') && status === 'pending') {
     return 'New';
   }
 
@@ -63,6 +72,10 @@ function getAttentionLabel(order: any, role?: AppRole): string | null {
 }
 
 export function OrderStatusPill({ status, className }: { status?: string; className?: string }) {
+  const { t } = useI18n();
+  const normalized = normalizeStatus(status);
+  const statusKey = normalized || 'unknown';
+
   return (
     <span
       className={cn(
@@ -71,12 +84,13 @@ export function OrderStatusPill({ status, className }: { status?: string; classN
         className
       )}
     >
-      {status || 'unknown'}
+      {t(statusKey)}
     </span>
   );
 }
 
 export function OrderUpdatePill({ order, role }: { order: any; role?: AppRole }) {
+  const { locale, t } = useI18n();
   const lastChangedAt = getLastChangedAt(order);
   const attentionLabel = getAttentionLabel(order, role);
 
@@ -84,8 +98,8 @@ export function OrderUpdatePill({ order, role }: { order: any; role?: AppRole })
 
   return (
     <span className="inline-flex items-center rounded-full border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
-      {attentionLabel || 'Updated'} {lastChangedAt ? `• ${formatRelativeShort(lastChangedAt)}` : ''}
+      {attentionLabel ? t(attentionLabel) : t('Updated')}
+      {lastChangedAt ? ` - ${formatRelativeShort(lastChangedAt, locale)}` : ''}
     </span>
   );
 }
-

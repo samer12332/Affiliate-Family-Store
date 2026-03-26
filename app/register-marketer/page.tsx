@@ -8,10 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useApi } from '@/hooks/useApi';
 import { validateEmail } from '@/lib/common-validation';
+import { useI18n } from '@/components/i18n/LanguageProvider';
 
 export default function RegisterMarketerPage() {
   const router = useRouter();
   const { post } = useApi();
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,15 +28,15 @@ export default function RegisterMarketerPage() {
     setSuccess('');
 
     if (!name.trim()) {
-      setError('Please provide your full name');
+      setError(t('Please provide your full name'));
       return;
     }
     if (!validateEmail(email)) {
-      setError('Please provide a valid email address');
+      setError(t('Please provide a valid email address'));
       return;
     }
     if (password.length < 6 || password.length > 128) {
-      setError('Password must be between 6 and 128 characters');
+      setError(t('Password must be between 6 and 128 characters'));
       return;
     }
 
@@ -46,12 +48,12 @@ export default function RegisterMarketerPage() {
         password,
         phone,
       });
-      setSuccess('Marketer account created successfully. You can now sign in.');
+      setSuccess(t('Marketer account created successfully. You can now sign in.'));
       setTimeout(() => {
         router.push('/admin/login');
       }, 1200);
     } catch (registerError) {
-      setError(registerError instanceof Error ? registerError.message : 'Failed to register marketer account');
+      setError(registerError instanceof Error ? registerError.message : t('Failed to register marketer account'));
     } finally {
       setLoading(false);
     }
@@ -61,10 +63,10 @@ export default function RegisterMarketerPage() {
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,#f5efe1,transparent_45%),linear-gradient(135deg,#fffef8,#f4efe4)] px-4">
       <div className="w-full max-w-md rounded-3xl border border-stone-200 bg-white/95 p-8 shadow-2xl shadow-stone-200/60">
         <div className="mb-8 text-center">
-          <p className="text-xs uppercase tracking-[0.3em] text-stone-500">Affiliate Family Store</p>
-          <h1 className="mt-3 text-3xl font-bold text-stone-900">Marketer registration</h1>
+          <p className="text-xs uppercase tracking-[0.3em] text-stone-500">{t('Affiliate Family Store')}</p>
+          <h1 className="mt-3 text-3xl font-bold text-stone-900">{t('Marketer registration')}</h1>
           <p className="mt-2 text-sm text-stone-600">
-            Self-signup is available only for marketer accounts.
+            {t('Self-signup is available only for marketer accounts.')}
           </p>
         </div>
 
@@ -84,34 +86,33 @@ export default function RegisterMarketerPage() {
 
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="mb-2 block text-sm font-medium text-stone-800">Full name</label>
+            <label className="mb-2 block text-sm font-medium text-stone-800">{t('Full name')}</label>
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-stone-800">Email</label>
+            <label className="mb-2 block text-sm font-medium text-stone-800">{t('Email')}</label>
             <Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required maxLength={254} />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-stone-800">Password</label>
+            <label className="mb-2 block text-sm font-medium text-stone-800">{t('Password')}</label>
             <Input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required minLength={6} maxLength={128} />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-stone-800">Phone (optional)</label>
+            <label className="mb-2 block text-sm font-medium text-stone-800">{t('Phone (optional)')}</label>
             <Input value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={30} />
           </div>
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? 'Creating account...' : 'Create marketer account'}
+            {loading ? t('Creating account...') : t('Create marketer account')}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-xs text-stone-500">
-          Already have an account?{' '}
+          {t('Already have an account?')}{' '}
           <Link href="/admin/login" className="font-semibold text-stone-700 hover:text-stone-900">
-            Sign in
+            {t('Sign in')}
           </Link>
         </p>
       </div>
     </div>
   );
 }
-

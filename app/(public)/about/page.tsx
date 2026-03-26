@@ -37,15 +37,15 @@ export default function AboutPage() {
                 <LocalizedText text="Our Story" />
               </h2>
               <p className="text-lg text-muted-foreground mb-4">
-                FamilyStore was founded with a simple mission: to make quality fashion accessible to families across Egypt. We believe that everyone deserves stylish and comfortable clothing at fair prices.
+                <LocalizedText text="FamilyStore was founded with a simple mission: to make quality fashion accessible to families across Egypt. We believe that everyone deserves stylish and comfortable clothing at fair prices." />
               </p>
               <p className="text-lg text-muted-foreground">
-                Since our launch, we've grown to serve thousands of happy customers, partnering with trusted suppliers to bring you the best selection of clothing, shoes, and accessories for men, women, and children.
+                <LocalizedText text="Since our launch, we've grown to serve thousands of happy customers, partnering with trusted suppliers to bring you the best selection of clothing, shoes, and accessories for men, women, and children." />
               </p>
             </div>
             <div className="bg-gradient-to-br from-primary/20 to-accent/20 rounded-lg p-8 h-64 flex items-center justify-center border border-border">
               <p className="text-center text-muted-foreground text-lg font-semibold">
-                Your Trusted Partner in Family Fashion
+                <LocalizedText text="Your Trusted Partner in Family Fashion" />
               </p>
             </div>
           </div>
@@ -68,7 +68,7 @@ export default function AboutPage() {
               <Heart className="w-10 h-10 text-primary mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Customer Care" /></h3>
               <p className="text-muted-foreground text-sm">
-                Your satisfaction is our priority. We're here to help with any questions.
+                <LocalizedText text="Your satisfaction is our priority. We're here to help with any questions." />
               </p>
             </div>
 
@@ -76,7 +76,7 @@ export default function AboutPage() {
               <Award className="w-10 h-10 text-primary mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Quality" /></h3>
               <p className="text-muted-foreground text-sm">
-                We only offer authentic, high-quality products you can trust.
+                <LocalizedText text="We only offer authentic, high-quality products you can trust." />
               </p>
             </div>
 
@@ -84,7 +84,7 @@ export default function AboutPage() {
               <Truck className="w-10 h-10 text-primary mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Fast Delivery" /></h3>
               <p className="text-muted-foreground text-sm">
-                Quick shipping across Egypt with reliable tracking and support.
+                <LocalizedText text="Quick shipping across Egypt with reliable tracking and support." />
               </p>
             </div>
 
@@ -92,7 +92,7 @@ export default function AboutPage() {
               <Users className="w-10 h-10 text-primary mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2"><LocalizedText text="Community" /></h3>
               <p className="text-muted-foreground text-sm">
-                Building a community of satisfied families across Egypt.
+                <LocalizedText text="Building a community of satisfied families across Egypt." />
               </p>
             </div>
           </div>
@@ -115,7 +115,7 @@ export default function AboutPage() {
                   <LocalizedText text="Wide Selection" />
                 </h3>
                 <p className="text-muted-foreground">
-                  Browse through our extensive collection of clothing, shoes, and accessories for the whole family.
+                  <LocalizedText text="Browse through our extensive collection of clothing, shoes, and accessories for the whole family." />
                 </p>
               </div>
             </div>
@@ -129,7 +129,7 @@ export default function AboutPage() {
                   <LocalizedText text="Fair Prices" />
                 </h3>
                 <p className="text-muted-foreground">
-                  Quality products at prices that won't break the bank. Competitive rates across all categories.
+                  <LocalizedText text="Quality products at prices that won't break the bank. Competitive rates across all categories." />
                 </p>
               </div>
             </div>
@@ -143,7 +143,7 @@ export default function AboutPage() {
                   <LocalizedText text="Easy Returns" />
                 </h3>
                 <p className="text-muted-foreground">
-                  Not happy with your purchase? Return within 14 days for a full refund, no questions asked.
+                  <LocalizedText text="Not happy with your purchase? Return within 14 days for a full refund, no questions asked." />
                 </p>
               </div>
             </div>
@@ -157,7 +157,7 @@ export default function AboutPage() {
                   <LocalizedText text="Expert Support" />
                 </h3>
                 <p className="text-muted-foreground">
-                  Our friendly team is available to help you find the perfect fit and answer any questions.
+                  <LocalizedText text="Our friendly team is available to help you find the perfect fit and answer any questions." />
                 </p>
               </div>
             </div>

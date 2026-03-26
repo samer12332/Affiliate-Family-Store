@@ -68,7 +68,7 @@ export default function MerchantPageClient({
 }: MerchantPageClientProps) {
   const router = useRouter();
   const { post } = useApi();
-  const { addItem, getTotalItems } = useCart();
+  const { addItem } = useCart();
   const { t } = useI18n();
   const merchant = initialMerchant;
   const products = initialProducts;
@@ -233,20 +233,6 @@ export default function MerchantPageClient({
               <p className="mt-2 max-w-3xl text-sm text-stone-600">
                 {t("Browse this merchant's products, review shipping terms, and enter the selling price you agreed with the customer before placing the order.")}
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              <Link href="/shop">
-                <Button size="sm" variant="outline">Marketplace</Button>
-              </Link>
-              <Link href="/marketer/dashboard">
-                <Button size="sm" variant="outline">Dashboard</Button>
-              </Link>
-              <Link href="/admin/orders">
-                <Button size="sm" variant="outline">My orders</Button>
-              </Link>
-              <Button size="sm" variant="outline" onClick={() => router.push('/cart')}>
-                {t('View cart')} ({getTotalItems()})
-              </Button>
             </div>
           </div>
         </div>

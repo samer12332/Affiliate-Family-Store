@@ -6,6 +6,7 @@ import { Category } from "@/lib/models";
 import { AVAILABILITY_STATUS, GENDER_TYPES } from "@/lib/constants";
 import { getPublicCategoryProducts } from "@/lib/product-marketplace";
 import Link from "next/link";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 
 export const revalidate = 60;
 export const dynamicParams = true;
@@ -120,7 +121,7 @@ export default async function CategoryPage({
   if (!category) {
     return (
       <div className="container mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <p className="text-muted-foreground">Category not found</p>
+        <p className="text-muted-foreground"><LocalizedText text="Category not found" /></p>
       </div>
     );
   }
@@ -138,9 +139,9 @@ export default async function CategoryPage({
     <div>
       <div className="bg-muted py-12">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-bold text-foreground">{category.name}</h1>
+          <h1 className="text-4xl font-bold text-foreground"><LocalizedText text={category.name} /></h1>
           {category.description && (
-            <p className="mt-2 text-muted-foreground">{category.description}</p>
+            <p className="mt-2 text-muted-foreground"><LocalizedText text={category.description} /></p>
           )}
         </div>
       </div>
@@ -149,16 +150,16 @@ export default async function CategoryPage({
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
           <aside className="lg:col-span-1">
             <div className="space-y-6 rounded-lg border border-border bg-card p-6">
-              <h3 className="font-semibold text-foreground">Filters</h3>
+              <h3 className="font-semibold text-foreground"><LocalizedText text="Filters" /></h3>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Gender</label>
+                <label className="text-sm font-medium text-foreground"><LocalizedText text="Gender" /></label>
                 <div className="flex flex-wrap gap-2">
                   <Link href={buildCategoryHref(slug, {
                     ...(statusParam ? { status: statusParam } : {}),
                     ...(sortParam ? { sort: sortParam } : {}),
                   })}>
-                    <Button variant={genderParam ? "outline" : "default"} size="sm">All</Button>
+                    <Button variant={genderParam ? "outline" : "default"} size="sm"><LocalizedText text="All" /></Button>
                   </Link>
                   {GENDER_TYPES.map((gender) => {
                     const href = buildCategoryHref(slug, {
@@ -169,7 +170,7 @@ export default async function CategoryPage({
                     return (
                       <Link key={gender} href={href}>
                         <Button variant={genderParam === gender ? "default" : "outline"} size="sm">
-                          {gender === "Unisex" ? "Gender Neutral" : gender}
+                          <LocalizedText text={gender === "Unisex" ? "Gender Neutral" : gender} />
                         </Button>
                       </Link>
                     );
@@ -178,13 +179,13 @@ export default async function CategoryPage({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Availability</label>
+                <label className="text-sm font-medium text-foreground"><LocalizedText text="Availability" /></label>
                 <div className="flex flex-wrap gap-2">
                   <Link href={buildCategoryHref(slug, {
                     ...(genderParam ? { gender: genderParam } : {}),
                     ...(sortParam ? { sort: sortParam } : {}),
                   })}>
-                    <Button variant={statusParam ? "outline" : "default"} size="sm">All</Button>
+                    <Button variant={statusParam ? "outline" : "default"} size="sm"><LocalizedText text="All" /></Button>
                   </Link>
                   {AVAILABILITY_STATUS.map((status) => {
                     const href = buildCategoryHref(slug, {
@@ -195,7 +196,7 @@ export default async function CategoryPage({
                     return (
                       <Link key={status} href={href}>
                         <Button variant={statusParam === status ? "default" : "outline"} size="sm">
-                          {status}
+                          <LocalizedText text={status} />
                         </Button>
                       </Link>
                     );
@@ -204,7 +205,7 @@ export default async function CategoryPage({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Sort By</label>
+                <label className="text-sm font-medium text-foreground"><LocalizedText text="Sort By" /></label>
                 <div className="flex flex-wrap gap-2">
                   {[
                     ["-createdAt", "Newest"],
@@ -220,7 +221,7 @@ export default async function CategoryPage({
                     return (
                       <Link key={value} href={href}>
                         <Button variant={sortParam === value ? "default" : "outline"} size="sm">
-                          {label}
+                          <LocalizedText text={label} />
                         </Button>
                       </Link>
                     );
@@ -233,7 +234,7 @@ export default async function CategoryPage({
           <main className="lg:col-span-3">
             {products.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="text-muted-foreground">No products found in this category.</p>
+                <p className="text-muted-foreground"><LocalizedText text="No products found in this category." /></p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
@@ -258,17 +259,17 @@ export default async function CategoryPage({
             {products.length > 0 && (
               <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-border bg-card/70 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Page {currentPage}
+                  <LocalizedText text="Page" /> {currentPage}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {currentPage > 1 && (
                     <Link href={buildCategoryHref(slug, { ...baseQuery, page: String(currentPage - 1) })}>
-                      <Button variant="outline">Previous</Button>
+                      <Button variant="outline"><LocalizedText text="Previous" /></Button>
                     </Link>
                   )}
                   {hasMore && (
                     <Link href={buildCategoryHref(slug, { ...baseQuery, page: String(currentPage + 1) })}>
-                      <Button>Next</Button>
+                      <Button><LocalizedText text="Next" /></Button>
                     </Link>
                   )}
                 </div>

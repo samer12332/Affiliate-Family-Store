@@ -1,11 +1,9 @@
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { OrderStatusPill, OrderUpdatePill } from '@/components/orders/order-status-indicators';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { connectDB } from '@/lib/db';
-import { Notification, Order, User } from '@/lib/models';
+import { Order, User } from '@/lib/models';
 import { isSubmerchantRole, normalizeRole } from '@/lib/roles';
 import { verifyToken } from '@/server/utils/auth';
 
@@ -112,7 +110,7 @@ export default async function MarketerDashboardPage() {
 
   const marketerQuery = { marketerId: viewer._id };
 
-  const [recentOrders, totalOrders, statusCounts, settlement, unreadNotifications] = await Promise.all([
+  const [recentOrders, totalOrders, statusCounts, settlement] = await Promise.all([
     Order.find(marketerQuery)
       .sort({ createdAt: -1 })
       .limit(DASHBOARD_RECENT_ORDERS_LIMIT)
@@ -121,7 +119,6 @@ export default async function MarketerDashboardPage() {
     Order.countDocuments(marketerQuery),
     getOrderStatusCounts(marketerQuery),
     getMarketerSettlementSummary(String(viewer._id)),
-    Notification.countDocuments({ userId: viewer._id, read: false }),
   ]);
 
   const data = {
@@ -141,19 +138,7 @@ export default async function MarketerDashboardPage() {
             <h1 className="mt-2 text-3xl font-bold text-stone-900">Your commission snapshot</h1>
             <p className="mt-2 text-sm text-stone-600">Delivered dues are only visible after the merchant marks the order as delivered.</p>
           </div>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            <Link href="/merchant-directory"><Button size="sm" variant="outline">Marketplace</Button></Link>
-            <Link href="/categories/clothes"><Button size="sm" variant="outline">Clothes</Button></Link>
-            <Link href="/categories/shoes"><Button size="sm" variant="outline">Shoes</Button></Link>
-            <Link href="/cart"><Button size="sm" variant="outline">Cart</Button></Link>
-            <Link href="/admin/commissions"><Button size="sm" variant="outline">Commissions</Button></Link>
-            <Link href="/admin/notifications">
-              <Button size="sm" variant="outline">
-                {`Notifications${unreadNotifications > 0 ? ` (${Math.min(unreadNotifications, 99)}${unreadNotifications > 99 ? '+' : ''})` : ''}`}
-              </Button>
-            </Link>
-            <Link href="/admin/orders"><Button size="sm">My orders</Button></Link>
-          </div>
+
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">

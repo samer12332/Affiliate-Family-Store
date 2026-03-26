@@ -1,15 +1,16 @@
-"use client";
+﻿'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import { useCart } from "@/hooks/useCart";
-import { Button } from "@/components/ui/button";
-import { ShoppingCart, Heart, Truck, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
-import { resolveColorHex } from "@/lib/color-swatches";
+import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import { useCart } from '@/hooks/useCart';
+import { useI18n } from '@/components/i18n/LanguageProvider';
+import { Button } from '@/components/ui/button';
+import { ShoppingCart, Heart, Truck, RotateCcw } from 'lucide-react';
+import { toast } from 'sonner';
+import { resolveColorHex } from '@/lib/color-swatches';
 
-const HERO_IMAGE_SIZES = "(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 600px";
-const THUMB_IMAGE_SIZES = "(max-width: 768px) 20vw, 120px";
+const HERO_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 600px';
+const THUMB_IMAGE_SIZES = '(max-width: 768px) 20vw, 120px';
 
 export interface ProductDetail {
   _id: string;
@@ -42,18 +43,19 @@ export default function ProductDetailClient({
   const product = initialProduct;
   const error = initialError || null;
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedColor, setSelectedColor] = useState<string>("");
-  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [isFavorited, setIsFavorited] = useState(false);
   const { addItem } = useCart();
+  const { t } = useI18n();
 
   const availableStock = useMemo(() => Math.max(0, Number(product?.stock || 0)), [product?.stock]);
   const normalizedColors = useMemo(
     () =>
       Array.isArray(product?.colors)
         ? product.colors.map((color) =>
-            typeof color === "string" ? { name: color, hex: resolveColorHex(color) } : color
+            typeof color === 'string' ? { name: color, hex: resolveColorHex(color) } : color
           )
         : [],
     [product?.colors]
@@ -111,11 +113,11 @@ export default function ProductDetailClient({
     }
 
     if (availableStock < 1) {
-      toast.error("This product is out of stock");
+      toast.error(t('This product is out of stock'));
       return;
     }
     if (quantity > availableStock) {
-      toast.error(`Only ${availableStock} item(s) available in stock`);
+      toast.error(`${t('Only')} ${availableStock} ${t('item(s) available in stock')}`);
       return;
     }
 
@@ -123,7 +125,7 @@ export default function ProductDetailClient({
     const hasSizeOptions = resolvedSizes.length > 0;
 
     if ((hasColorOptions && !selectedColor) || (hasSizeOptions && !selectedSize)) {
-      toast.error("Please select required options");
+      toast.error(t('Please select required options'));
       return;
     }
 
@@ -132,14 +134,14 @@ export default function ProductDetailClient({
 
     const result = addItem({
       productId: product._id,
-      merchantId: String(product.merchantId || ""),
-      shippingSystemId: String(product.shippingSystemId || ""),
-      merchantName: product.brand || "Merchant",
+      merchantId: String(product.merchantId || ''),
+      shippingSystemId: String(product.shippingSystemId || ''),
+      merchantName: product.brand || 'Merchant',
       productName: product.name,
       productSlug: product.slug,
-      productImage: product.images?.[0] || "",
-      selectedColor: hasColorOptions ? selectedColor : "Default",
-      selectedSize: hasSizeOptions ? (sizeRangeLabelBySize[selectedSize] || selectedSize) : "Default",
+      productImage: product.images?.[0] || '',
+      selectedColor: hasColorOptions ? selectedColor : 'Default',
+      selectedSize: hasSizeOptions ? (sizeRangeLabelBySize[selectedSize] || selectedSize) : 'Default',
       quantity,
       price: initialSalePrice,
       merchantPrice: baseMerchantPrice,
@@ -149,25 +151,25 @@ export default function ProductDetailClient({
     });
 
     if (!result.ok) {
-      toast.error(result.error);
+      toast.error(t(result.error));
       return;
     }
 
-    toast.success(`${quantity} item(s) added to cart`);
+    toast.success(`${quantity} ${t('item(s) added to cart')}`);
   };
 
   if (error || !product) {
     return (
       <div className="container mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <p className="text-muted-foreground">{error || "Product not found"}</p>
+        <p className="text-muted-foreground">{t(error || 'Product not found')}</p>
       </div>
     );
   }
 
   const selectedSizeRangeText =
     selectedSize && sizeRangeLabelBySize[selectedSize]
-      ? `${selectedSize} is suitable for ${sizeRangeLabelBySize[selectedSize].replace(`${selectedSize} `, "")}`
-      : "";
+      ? `${selectedSize} ${t('is suitable for')} ${sizeRangeLabelBySize[selectedSize].replace(`${selectedSize} `, '')}`
+      : '';
 
   return (
     <div>
@@ -176,15 +178,15 @@ export default function ProductDetailClient({
           <div className="space-y-4">
             <div className="relative w-full overflow-hidden rounded-lg bg-muted">
               <Image
-                src={product.images[selectedImage] || "/placeholder.jpg"}
+                src={product.images[selectedImage] || '/placeholder.jpg'}
                 alt={product.name}
                 width={1200}
                 height={1200}
                 className="aspect-square h-auto w-full object-cover"
                 sizes={HERO_IMAGE_SIZES}
                 priority={selectedImage === 0}
-                loading={selectedImage === 0 ? "eager" : "lazy"}
-                fetchPriority={selectedImage === 0 ? "high" : "auto"}
+                loading={selectedImage === 0 ? 'eager' : 'lazy'}
+                fetchPriority={selectedImage === 0 ? 'high' : 'auto'}
               />
               {discount > 0 && (
                 <div className="absolute top-4 right-4 rounded-full bg-destructive px-3 py-1 text-sm font-semibold text-destructive-foreground">
@@ -200,7 +202,7 @@ export default function ProductDetailClient({
                     key={idx}
                     onClick={() => setSelectedImage(idx)}
                     className={`overflow-hidden rounded-lg border-2 transition-colors ${
-                      selectedImage === idx ? "border-primary" : "border-border"
+                      selectedImage === idx ? 'border-primary' : 'border-border'
                     }`}
                   >
                     <Image
@@ -219,9 +221,9 @@ export default function ProductDetailClient({
 
           <div className="flex flex-col gap-6">
             <div>
-              <p className="mb-2 text-sm text-muted-foreground">{product.category}</p>
+              <p className="mb-2 text-sm text-muted-foreground">{t(product.category)}</p>
               <h1 className="mb-2 text-3xl font-bold text-foreground sm:text-4xl">{product.name}</h1>
-              {product.brand && <p className="text-muted-foreground">by {product.brand}</p>}
+              {product.brand && <p className="text-muted-foreground">{t('by')} {product.brand}</p>}
             </div>
 
             <div className="flex items-baseline gap-3">
@@ -233,21 +235,21 @@ export default function ProductDetailClient({
 
             <div
               className={`inline-block w-fit rounded-full px-3 py-1 text-sm font-medium ${
-                product.availabilityStatus === "Available"
-                  ? "bg-green-100 text-green-800"
-                  : product.availabilityStatus === "Limited Availability"
-                    ? "bg-yellow-100 text-yellow-800"
-                    : "bg-red-100 text-red-800"
+                product.availabilityStatus === 'Available'
+                  ? 'bg-green-100 text-green-800'
+                  : product.availabilityStatus === 'Limited Availability'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-red-100 text-red-800'
               }`}
             >
-              {product.availabilityStatus}
+              {t(product.availabilityStatus)}
             </div>
 
             <p className="leading-relaxed text-muted-foreground">{product.description}</p>
 
             {normalizedColors.length > 0 && (
               <div>
-                <label className="mb-3 block text-sm font-medium text-foreground">Color</label>
+                <label className="mb-3 block text-sm font-medium text-foreground">{t('Color')}</label>
                 <div className="flex gap-3">
                   {normalizedColors.map((color) => (
                     <button
@@ -255,8 +257,8 @@ export default function ProductDetailClient({
                       onClick={() => setSelectedColor(color.name)}
                       className={`flex items-center gap-2 rounded-lg border-2 px-4 py-2 transition-colors ${
                         selectedColor === color.name
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:border-primary/50"
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:border-primary/50'
                       }`}
                     >
                       <div className="h-6 w-6 rounded-full border border-gray-300" style={{ backgroundColor: color.hex }} />
@@ -269,13 +271,13 @@ export default function ProductDetailClient({
 
             {Array.isArray(product.sizeWeightChart) && product.sizeWeightChart.length > 0 && (
               <div>
-                <label className="mb-3 block text-sm font-medium text-foreground">Size Guide by Weight</label>
+                <label className="mb-3 block text-sm font-medium text-foreground">{t('Size Guide by Weight')}</label>
                 <div className="overflow-hidden rounded-lg border border-border">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50">
                       <tr>
-                        <th className="px-3 py-2 text-left font-medium text-foreground">Size</th>
-                        <th className="px-3 py-2 text-left font-medium text-foreground">Weight Range</th>
+                        <th className="px-3 py-2 text-left font-medium text-foreground">{t('Size')}</th>
+                        <th className="px-3 py-2 text-left font-medium text-foreground">{t('Weight Range')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -294,13 +296,13 @@ export default function ProductDetailClient({
             )}
             {(!Array.isArray(product.sizeWeightChart) || product.sizeWeightChart.length === 0) &&
               resolvedSizes.length > 0 &&
-              product.category !== "Shoes" && (
-                <p className="text-sm text-muted-foreground">Size weight details are not configured for this product yet.</p>
+              product.category !== 'Shoes' && (
+                <p className="text-sm text-muted-foreground">{t('Size weight details are not configured for this product yet.')}</p>
               )}
 
             {resolvedSizes.length > 0 && (
               <div>
-                <label className="mb-3 block text-sm font-medium text-foreground">Size</label>
+                <label className="mb-3 block text-sm font-medium text-foreground">{t('Size')}</label>
                 <div className="flex flex-wrap gap-2">
                   {resolvedSizes.map((size) => (
                     <button
@@ -308,8 +310,8 @@ export default function ProductDetailClient({
                       onClick={() => setSelectedSize(size)}
                       className={`rounded-lg border-2 px-4 py-2 text-sm font-medium transition-colors ${
                         selectedSize === size
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border hover:border-primary"
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border hover:border-primary'
                       }`}
                     >
                       {sizeRangeLabelBySize[size] || size}
@@ -321,7 +323,7 @@ export default function ProductDetailClient({
             )}
 
             <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-foreground">Quantity:</span>
+              <span className="text-sm font-medium text-foreground">{t('Quantity')}:</span>
               <div className="flex items-center rounded-lg border border-border">
                 <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-3 py-2 hover:bg-muted">
                   -
@@ -334,7 +336,7 @@ export default function ProductDetailClient({
                   +
                 </button>
               </div>
-              <span className="text-xs text-muted-foreground">In stock: {availableStock}</span>
+              <span className="text-xs text-muted-foreground">{t('In stock')}: {availableStock}</span>
             </div>
 
             <div className="flex gap-3">
@@ -345,13 +347,13 @@ export default function ProductDetailClient({
                 size="lg"
               >
                 <ShoppingCart className="h-5 w-5" />
-                Add to Cart
+                {t('Add to Cart')}
               </Button>
               <button
                 onClick={() => setIsFavorited(!isFavorited)}
                 className="rounded-lg border border-border px-6 transition-colors hover:bg-muted"
               >
-                <Heart className={`h-5 w-5 ${isFavorited ? "fill-destructive text-destructive" : "text-foreground"}`} />
+                <Heart className={`h-5 w-5 ${isFavorited ? 'fill-destructive text-destructive' : 'text-foreground'}`} />
               </button>
             </div>
 
@@ -359,18 +361,18 @@ export default function ProductDetailClient({
               <div className="flex gap-3">
                 <Truck className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
                 <div>
-                  <p className="font-medium text-foreground">Fast Shipping</p>
-                  <p className="text-sm text-muted-foreground">Delivery available across Egypt</p>
+                  <p className="font-medium text-foreground">{t('Fast Shipping')}</p>
+                  <p className="text-sm text-muted-foreground">{t('Delivery available across Egypt')}</p>
                 </div>
               </div>
               <div className="flex gap-3">
                 <RotateCcw className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
                 <div>
-                  <p className="font-medium text-foreground">Easy Returns</p>
+                  <p className="font-medium text-foreground">{t('Easy Returns')}</p>
                   {product.returnPolicy ? (
                     <p className="text-sm text-muted-foreground">{product.returnPolicy}</p>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Return within 30 days for a full refund</p>
+                    <p className="text-sm text-muted-foreground">{t('Return within 30 days for a full refund')}</p>
                   )}
                 </div>
               </div>

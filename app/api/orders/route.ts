@@ -192,7 +192,7 @@ async function buildOrderDetails(orderProducts: any[], governorate: string, merc
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -272,7 +272,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'marketer']);
     if (!auth.ok) {
       return auth.response;
     }

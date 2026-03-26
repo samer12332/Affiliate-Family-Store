@@ -21,7 +21,7 @@ export async function PATCH(
 ) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
+    const auth = await requireRole(request, ['owner', 'admin', 'main_merchant', 'submerchant', 'merchant', 'marketer']);
     if (!auth.ok) return auth.response;
 
     const { id } = await params;

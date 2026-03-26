@@ -1,16 +1,15 @@
 export type ExtendedAppRole =
   | 'owner'
   | 'admin'
-  | 'super_admin'
   | 'main_merchant'
   | 'submerchant'
   | 'merchant'
   | 'marketer';
 
-export const ADMIN_ROLES: ExtendedAppRole[] = ['owner', 'admin', 'super_admin'];
+export const ADMIN_ROLES: ExtendedAppRole[] = ['owner', 'admin'];
 
 export function isAdminRole(role?: string | null): boolean {
-  return role === 'owner' || role === 'admin' || role === 'super_admin';
+  return role === 'owner' || role === 'admin';
 }
 
 export function isMainMerchantRole(role?: string | null): boolean {
@@ -28,6 +27,5 @@ export function isMarketerRole(role?: string | null): boolean {
 export function normalizeRole(role?: string | null): string {
   if (!role) return '';
   if (role === 'merchant') return 'submerchant';
-  if (role === 'super_admin') return 'admin';
   return role;
 }

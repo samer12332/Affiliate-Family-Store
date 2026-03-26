@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcryptjs from 'bcryptjs';
 import { MAX_PRODUCT_IMAGES } from '@/lib/constants';
 
-const USER_ROLES = ['owner', 'admin', 'super_admin', 'main_merchant', 'submerchant', 'merchant', 'marketer'] as const;
+const USER_ROLES = ['owner', 'admin', 'main_merchant', 'submerchant', 'merchant', 'marketer'] as const;
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'] as const;
 const COMMISSION_STATUSES = ['pending', 'confirmed', 'delivered', 'paid'] as const;
 const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
@@ -412,3 +412,4 @@ export const Notification =
   mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
 export const CommissionComplaint =
   mongoose.models.CommissionComplaint || mongoose.model('CommissionComplaint', commissionComplaintSchema);
+

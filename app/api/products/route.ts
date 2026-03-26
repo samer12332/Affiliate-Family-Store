@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const auth = await requireRole(request, ['owner', 'admin', 'super_admin', 'submerchant', 'merchant', 'main_merchant']);
+    const auth = await requireRole(request, ['owner', 'admin', 'submerchant', 'merchant', 'main_merchant']);
     if (!auth.ok) {
       return auth.response;
     }
@@ -357,3 +357,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

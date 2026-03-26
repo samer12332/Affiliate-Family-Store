@@ -110,7 +110,7 @@ export default function UsersPage() {
               <option value="submerchant">submerchant</option>
               <option value="marketer">marketer</option>
               {role === 'owner' && <option value="admin">admin</option>}
-              {role === 'owner' && <option value="super_admin">super_admin</option>}
+
             </select>
             <input value={form.storeName} onChange={(e) => setForm((prev) => ({ ...prev, storeName: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Store name for submerchants" />
             <input value={form.storeSlug} onChange={(e) => setForm((prev) => ({ ...prev, storeSlug: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" placeholder="Store slug" />

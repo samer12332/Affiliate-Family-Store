@@ -64,7 +64,7 @@ export async function backfillNotificationRetention(userId?: string) {
 
 export async function getAdminUserIds(): Promise<string[]> {
   const ids = await User.find({
-    role: { $in: ['owner', 'admin', 'super_admin'] },
+    role: { $in: ['owner', 'admin'] },
     active: true,
   }).distinct('_id');
   return ids.map((id: any) => id?.toString?.() || String(id));
@@ -100,3 +100,4 @@ export async function createNotificationsForUsers(input: {
     }))
   );
 }
+
