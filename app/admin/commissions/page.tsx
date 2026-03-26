@@ -66,16 +66,43 @@ export default function CommissionsPage() {
   const summary = useMemo(() => {
     let pending = 0;
     let received = 0;
+    let marketerPending = 0;
+    let marketerReceived = 0;
+    let upstreamPending = 0;
+    let upstreamReceived = 0;
+
     for (const row of rows) {
       const amount = Number(row?.amount || 0);
       if (!Number.isFinite(amount) || amount <= 0) continue;
-      if (row?.receiverMarkedReceivedAt) {
+
+      const isReceived = Boolean(row?.receiverMarkedReceivedAt);
+      const channel = String(row?.channel || '');
+
+      if (isReceived) {
         received += amount;
+        if (channel === 'marketer') {
+          marketerReceived += amount;
+        } else if (channel === 'owner' || channel === 'main_merchant') {
+          upstreamReceived += amount;
+        }
       } else {
         pending += amount;
+        if (channel === 'marketer') {
+          marketerPending += amount;
+        } else if (channel === 'owner' || channel === 'main_merchant') {
+          upstreamPending += amount;
+        }
       }
     }
-    return { pending, received };
+
+    return {
+      pending,
+      received,
+      marketerPending,
+      marketerReceived,
+      upstreamPending,
+      upstreamReceived,
+    };
   }, [rows]);
 
   if (isLoading || !token || !admin) return null;
@@ -130,16 +157,37 @@ export default function CommissionsPage() {
 
         {error && <p className="mb-4 text-sm text-destructive">{t(error)}</p>}
 
-        <div className="mb-6 grid gap-4 md:grid-cols-2">
-          <Card className="rounded-3xl border-stone-200 p-5">
-            <p className="text-sm text-stone-500">{t('Pending commissions')}</p>
-            <p className="mt-2 text-2xl font-bold text-stone-900">{summary.pending.toFixed(2)} EGP</p>
-          </Card>
-          <Card className="rounded-3xl border-stone-200 p-5">
-            <p className="text-sm text-stone-500">{t('Received commissions')}</p>
-            <p className="mt-2 text-2xl font-bold text-stone-900">{summary.received.toFixed(2)} EGP</p>
-          </Card>
-        </div>
+        {isSubmerchantRole(role) && admin.mainMerchantId ? (
+          <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Card className="rounded-3xl border-stone-200 p-5">
+              <p className="text-sm text-stone-500">{t('Payable to marketers')}</p>
+              <p className="mt-2 text-2xl font-bold text-stone-900">{summary.marketerPending.toFixed(2)} EGP</p>
+            </Card>
+            <Card className="rounded-3xl border-stone-200 p-5">
+              <p className="text-sm text-stone-500">{t('Paid to marketers')}</p>
+              <p className="mt-2 text-2xl font-bold text-stone-900">{summary.marketerReceived.toFixed(2)} EGP</p>
+            </Card>
+            <Card className="rounded-3xl border-stone-200 p-5">
+              <p className="text-sm text-stone-500">{t('Payable to main merchant (incl. owner share)')}</p>
+              <p className="mt-2 text-2xl font-bold text-stone-900">{summary.upstreamPending.toFixed(2)} EGP</p>
+            </Card>
+            <Card className="rounded-3xl border-stone-200 p-5">
+              <p className="text-sm text-stone-500">{t('Paid to main merchant (incl. owner share)')}</p>
+              <p className="mt-2 text-2xl font-bold text-stone-900">{summary.upstreamReceived.toFixed(2)} EGP</p>
+            </Card>
+          </div>
+        ) : (
+          <div className="mb-6 grid gap-4 md:grid-cols-2">
+            <Card className="rounded-3xl border-stone-200 p-5">
+              <p className="text-sm text-stone-500">{t('Pending commissions')}</p>
+              <p className="mt-2 text-2xl font-bold text-stone-900">{summary.pending.toFixed(2)} EGP</p>
+            </Card>
+            <Card className="rounded-3xl border-stone-200 p-5">
+              <p className="text-sm text-stone-500">{t('Received commissions')}</p>
+              <p className="mt-2 text-2xl font-bold text-stone-900">{summary.received.toFixed(2)} EGP</p>
+            </Card>
+          </div>
+        )}
 
         <Card className="rounded-3xl border-stone-200 p-6">
           {loadingRows ? (

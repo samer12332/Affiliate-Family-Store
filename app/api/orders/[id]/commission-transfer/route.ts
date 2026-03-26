@@ -75,6 +75,12 @@ export async function PATCH(
     let canMarkPaid = false;
     let canMarkReceived = false;
     if (channel === 'owner') {
+      if (isActorSubmerchant && mainMerchantId) {
+        return NextResponse.json(
+          { error: 'Submerchant must pay owner share through main merchant when a main merchant exists' },
+          { status: 400 }
+        );
+      }
       canMarkPaid = isActorSubmerchant || isActorMainMerchant;
       canMarkReceived = isActorOwner;
     } else if (channel === 'main_merchant') {

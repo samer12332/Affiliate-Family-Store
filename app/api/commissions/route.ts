@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
       const submerchant = userMap.get(order.merchantId?.toString?.() || '');
       const marketer = userMap.get(order.marketerId?.toString?.() || '');
       const mainMerchantId = submerchant?.mainMerchantId?.toString?.() || '';
+      const hasMainMerchant = Boolean(mainMerchantId);
       const isActorSubmerchant = isSubmerchantRole(actorRole) && order.merchantId.toString() === actorId;
       const isActorMainMerchant = isMainMerchantRole(actorRole) && mainMerchantId === actorId;
       const isActorMarketer = isMarketerRole(actorRole) && order.marketerId.toString() === actorId;
@@ -63,14 +64,20 @@ export async function GET(request: NextRequest) {
       const channels = [
         {
           channel: 'owner',
-          amount: Number(commission.ownerAmount || 0),
+          amount:
+            isActorSubmerchant && hasMainMerchant
+              ? 0
+              : Number(commission.ownerAmount || 0),
           settlement: commission.ownerSettlement || {},
           canMarkPaid: isActorSubmerchant || isActorMainMerchant,
           canMarkReceived: isActorOwner,
         },
         {
           channel: 'main_merchant',
-          amount: Number(commission.mainMerchantAmount || 0),
+          amount:
+            isActorSubmerchant && hasMainMerchant
+              ? Number(commission.mainMerchantAmount || 0) + Number(commission.ownerAmount || 0)
+              : Number(commission.mainMerchantAmount || 0),
           settlement: commission.mainMerchantSettlement || {},
           canMarkPaid: isActorSubmerchant,
           canMarkReceived: isActorMainMerchant,

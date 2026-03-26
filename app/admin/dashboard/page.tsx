@@ -105,10 +105,26 @@ export default function DashboardPage() {
               { label: t('Marketers'), value: data?.managedMarketers ?? 0, href: '/admin/users' },
               { label: t('Orders'), value: data?.totalOrders ?? 0, href: '/admin/orders' },
               { label: t('Products'), value: data?.totalProducts ?? 0, href: '/admin/products' },
-              { label: 'My commissions (pending)', value: `${Number(data?.totalMainMerchantCommissionsPending ?? data?.totalMainMerchantCommissions ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
-              { label: 'My commissions (received)', value: `${Number(data?.totalMainMerchantCommissionsReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
-              { label: t('Due to system owner (pending)'), value: `${Number(data?.ownerCommissionDuePending ?? data?.ownerCommissionDue ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
-              { label: t('Paid to system owner (received)'), value: `${Number(data?.ownerCommissionDueReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              { label: t('Your commission profit (pending)'), value: `${Number(data?.totalMainMerchantCommissionsPending ?? data?.totalMainMerchantCommissions ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              { label: t('Your commission profit (received)'), value: `${Number(data?.totalMainMerchantCommissionsReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              { label: t('Owner share to transfer'), value: `${Number(data?.ownerCommissionDuePending ?? data?.ownerCommissionDue ?? 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              { label: t('Owner share transferred'), value: `${Number(data?.ownerCommissionDueReceived || 0).toFixed(2)} EGP`, href: '/admin/commissions' },
+              {
+                label: t('Total to collect from submerchants (pending)'),
+                value: `${(
+                  Number(data?.totalMainMerchantCommissionsPending ?? data?.totalMainMerchantCommissions ?? 0) +
+                  Number(data?.ownerCommissionDuePending ?? data?.ownerCommissionDue ?? 0)
+                ).toFixed(2)} EGP`,
+                href: '/admin/commissions',
+              },
+              {
+                label: t('Total collected from submerchants (received)'),
+                value: `${(
+                  Number(data?.totalMainMerchantCommissionsReceived || 0) +
+                  Number(data?.ownerCommissionDueReceived || 0)
+                ).toFixed(2)} EGP`,
+                href: '/admin/commissions',
+              },
             ]
         : [
             { label: t('Orders'), value: data?.totalOrders ?? 0, href: '/admin/orders' },
@@ -132,6 +148,11 @@ export default function DashboardPage() {
             <p className="text-xs uppercase tracking-[0.3em] text-stone-500">{role.replace('_', ' ')}</p>
             <h1 className="mt-2 text-3xl font-bold text-stone-900">{t('Welcome,')} {admin.name}</h1>
             <p className="mt-1 text-sm text-stone-600">{admin.email}</p>
+            {isMainMerchantRole(role) && (
+              <p className="mt-2 text-sm text-stone-700">
+                {t('Main merchant note: you collect both your commission and the owner commission from submerchants. The owner commission is pass-through and not your profit.')}
+              </p>
+            )}
           </div>
         </div>
 
